@@ -6,7 +6,6 @@ import json
 import os
 import re
 import uuid
-from functools import lru_cache
 from typing import Callable
 
 import duckdb
@@ -86,97 +85,105 @@ def make_server(
             return Response(status_code=404)
         return Response(content=asset.content, media_type=asset.mime)
 
-    # Database connection
+    if duckdb_uri == "server":
+        duckdb_connection = make_duckdb_connection(data_source.dataset)
+    else:
+        duckdb_connection = None
 
-    @lru_cache(maxsize=1)
-    def get_connection():
-        con = duckdb.connect(":memory:")
-        df = data_source.dataset
-        _ = df
-        con.sql("CREATE TABLE dataset AS (SELECT * FROM df)")
-        return con
-
-    def handle_query(query: dict):
-        sql = query["sql"]
-        command = query["type"]
-        with get_connection().cursor() as cursor:
-            try:
-                result = cursor.execute(sql)
-                if command == "exec":
-                    return JSONResponse({})
-                elif command == "arrow":
-                    buf = arrow_to_bytes(result.arrow())
-                    return Response(
-                        buf, headers={"Content-Type": "application/octet-stream"}
-                    )
-                elif command == "json":
-                    data = result.df().to_json(orient="records")
-                    return Response(data, headers={"Content-Type": "application/json"})
-                else:
-                    raise ValueError(f"Unknown command {command}")
-            except Exception as e:
-                return JSONResponse({"error": str(e)}, status_code=500)
-
-    def handle_selection(query: dict):
-        predicate = query.get("predicate", None)
-        format = query["format"]
-        formats = {
-            "json": "(FORMAT JSON, ARRAY true)",
-            "jsonl": "(FORMAT JSON)",
-            "csv": "(FORMAT CSV)",
-            "parquet": "(FORMAT parquet)",
-        }
-        with get_connection().cursor() as cursor:
-            filename = ".selection-" + str(uuid.uuid4()) + ".tmp"
-            try:
-                if predicate is not None:
-                    cursor.execute(
-                        f"COPY (SELECT * FROM dataset WHERE {predicate}) TO '{filename}' {formats[format]}"
-                    )
-                else:
-                    cursor.execute(f"COPY dataset TO '{filename}' {formats[format]}")
-                with open(filename, "rb") as f:
-                    buffer = f.read()
-                    return Response(
-                        buffer, headers={"Content-Type": "application/octet-stream"}
-                    )
-            except Exception as e:
-                return JSONResponse({"error": str(e)}, status_code=500)
-            finally:
+    if duckdb_connection is not None:
+        def handle_query(query: dict):
+            sql = query["sql"]
+            command = query["type"]
+            with duckdb_connection.cursor() as cursor:
                 try:
-                    os.unlink(filename)
-                except Exception:
-                    pass
+                    result = cursor.execute(sql)
+                    if command == "exec":
+                        return JSONResponse({})
+                    elif command == "arrow":
+                        buf = arrow_to_bytes(result.arrow())
+                        return Response(
+                            buf, headers={"Content-Type": "application/octet-stream"}
+                        )
+                    elif command == "json":
+                        data = result.df().to_json(orient="records")
+                        return Response(
+                            data, headers={"Content-Type": "application/json"}
+                        )
+                    else:
+                        raise ValueError(f"Unknown command {command}")
+                except Exception as e:
+                    return JSONResponse({"error": str(e)}, status_code=500)
 
-    executor = concurrent.futures.ThreadPoolExecutor()
+        def handle_selection(query: dict):
+            predicate = query.get("predicate", None)
+            format = query["format"]
+            formats = {
+                "json": "(FORMAT JSON, ARRAY true)",
+                "jsonl": "(FORMAT JSON)",
+                "csv": "(FORMAT CSV)",
+                "parquet": "(FORMAT parquet)",
+            }
+            with duckdb_connection.cursor() as cursor:
+                filename = ".selection-" + str(uuid.uuid4()) + ".tmp"
+                try:
+                    if predicate is not None:
+                        cursor.execute(
+                            f"COPY (SELECT * FROM dataset WHERE {predicate}) TO '{filename}' {formats[format]}"
+                        )
+                    else:
+                        cursor.execute(
+                            f"COPY dataset TO '{filename}' {formats[format]}"
+                        )
+                    with open(filename, "rb") as f:
+                        buffer = f.read()
+                        return Response(
+                            buffer,
+                            headers={"Content-Type": "application/octet-stream"},
+                        )
+                except Exception as e:
+                    return JSONResponse({"error": str(e)}, status_code=500)
+                finally:
+                    try:
+                        os.unlink(filename)
+                    except Exception:
+                        pass
 
-    @app.get("/data/query")
-    async def get_query(req: Request):
-        data = json.loads(req.query_params["query"])
-        return await asyncio.get_running_loop().run_in_executor(
-            executor, lambda: handle_query(data)
-        )
+        executor = concurrent.futures.ThreadPoolExecutor()
 
-    @app.post("/data/query")
-    async def post_query(req: Request):
-        body = await req.body()
-        data = json.loads(body)
-        return await asyncio.get_running_loop().run_in_executor(
-            executor, lambda: handle_query(data)
-        )
+        @app.get("/data/query")
+        async def get_query(req: Request):
+            data = json.loads(req.query_params["query"])
+            return await asyncio.get_running_loop().run_in_executor(
+                executor, lambda: handle_query(data)
+            )
 
-    @app.post("/data/selection")
-    async def post_selection(req: Request):
-        body = await req.body()
-        data = json.loads(body)
-        return await asyncio.get_running_loop().run_in_executor(
-            executor, lambda: handle_selection(data)
-        )
+        @app.post("/data/query")
+        async def post_query(req: Request):
+            body = await req.body()
+            data = json.loads(body)
+            return await asyncio.get_running_loop().run_in_executor(
+                executor, lambda: handle_query(data)
+            )
+
+        @app.post("/data/selection")
+        async def post_selection(req: Request):
+            body = await req.body()
+            data = json.loads(body)
+            return await asyncio.get_running_loop().run_in_executor(
+                executor, lambda: handle_selection(data)
+            )
 
     # Static files for the frontend
     app.mount("/", StaticFiles(directory=static_path, html=True))
 
     return app
+
+
+def make_duckdb_connection(df):
+    con = duckdb.connect(":memory:")
+    _ = df  # used in the query
+    con.sql("CREATE TABLE dataset AS (SELECT * FROM df)")
+    return con
 
 
 def parse_range_header(request: Request, content_length: int):
