@@ -2,6 +2,7 @@
 
 import type { CustomCell } from "@embedding-atlas/table";
 
+import { isImageReference } from "../image_utils.js";
 import { ImageRenderer } from "./image.js";
 import { JSONRenderer, safeJSONStringify } from "./json.js";
 import { MarkdownRenderer } from "./markdown.js";
@@ -46,17 +47,7 @@ export function isLink(value: any): boolean {
 }
 
 export function isImage(value: any): boolean {
-  if (value == null) {
-    return false;
-  }
-  if (typeof value == "string" && value.startsWith("data:image/")) {
-    return true;
-  }
-  if (value.bytes && value.bytes instanceof Uint8Array) {
-    // TODO: check if the bytes are actually an image.
-    return true;
-  }
-  return false;
+  return isImageReference(value);
 }
 
 export function stringify(value: any): string {

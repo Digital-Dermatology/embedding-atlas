@@ -2,7 +2,7 @@
 <script lang="ts">
   import * as SQL from "@uwdata/mosaic-sql";
   import * as vg from "@uwdata/vgplot";
-  import { onMount } from "svelte";
+  import { onDestroy, onMount } from "svelte";
   import { cubicOut } from "svelte/easing";
   import { Tween } from "svelte/motion";
   import { slide } from "svelte/transition";
@@ -42,6 +42,7 @@
   import { CustomOverlay, CustomTooltip } from "./custom_components.js";
   import { makeDarkModeStore } from "./dark_mode_store.js";
   import { predicateToString, TableInfo, type ColumnDesc, type EmbeddingLegend } from "./database_utils.js";
+  import { setImageAssets } from "./image_utils.js";
   import type { Plot } from "./plots/plot.js";
   import { PlotStateStoreManager } from "./plots/plot_state_store.js";
   import { getRenderer, type ColumnStyle } from "./renderers/index.js";
@@ -68,12 +69,21 @@
     onExportSelection,
     onStateChange,
     cache,
+    assets = null,
   }: EmbeddingAtlasProps = $props();
 
   const { darkMode, userDarkMode } = makeDarkModeStore();
 
   Context.coordinator = coordinator;
   Context.darkMode = darkMode;
+
+  setImageAssets(assets?.images ?? null);
+  $effect(() => {
+    setImageAssets(assets?.images ?? null);
+  });
+  onDestroy(() => {
+    setImageAssets(null);
+  });
 
   $effect(() => {
     switch (colorScheme) {

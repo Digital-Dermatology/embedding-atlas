@@ -70,6 +70,7 @@
       }}
       embeddingViewConfig={config.embeddingViewConfig}
       embeddingViewLabels={config.embeddingViewLabels}
+      assets={config.assets}
       initialState={initialState}
       onExportApplication={dataSource.downloadArchive ? onDownloadArchive : null}
       onExportSelection={dataSource.downloadSelection ? onExportSelection : null}

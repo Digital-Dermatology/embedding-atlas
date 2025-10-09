@@ -54,6 +54,14 @@ export class BackendDataSource implements DataSource {
     onStatus: (message: string) => void,
   ): Promise<Partial<EmbeddingAtlasProps>> {
     let metadata = await this.metadata();
+    if (metadata.props?.assets?.images) {
+      let relative = metadata.props.assets.images.relativePath ?? "images";
+      let baseUrl = joinUrl(this.serverUrl, relative);
+      metadata.props.assets.images = {
+        ...metadata.props.assets.images,
+        baseUrl: baseUrl,
+      };
+    }
 
     onStatus("Initializing DuckDB...");
     let dbType = metadata.database?.type ?? "wasm";

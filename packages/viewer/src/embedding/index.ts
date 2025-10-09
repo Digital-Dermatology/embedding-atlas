@@ -4,6 +4,7 @@ import { type Coordinator } from "@uwdata/mosaic-core";
 import * as SQL from "@uwdata/mosaic-sql";
 
 import { WorkerRPC } from "./worker_helper.js";
+import { getImageAssets } from "../lib/image_utils.js";
 
 let _rpc: Promise<(name: string, ...args: any[]) => Promise<any>> | null = null;
 function connect() {
@@ -94,6 +95,10 @@ export async function computeEmbedding(options: {
   progress(`Loading ${options.model}...`);
 
   let rpc = await connect();
+  let assetsConfig = getImageAssets();
+  if (assetsConfig != null) {
+    await rpc("embedding.assets", assetsConfig);
+  }
 
   let instance = await rpc("embedding.new", { type: options.type, model: options.model });
 

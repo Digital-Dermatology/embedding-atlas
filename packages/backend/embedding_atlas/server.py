@@ -79,6 +79,13 @@ def make_server(
         data = data_source.make_archive(static_path)
         return Response(content=data, media_type="application/zip")
 
+    @app.get("/data/images/{column}/{filename}")
+    async def get_image(column: str, filename: str):
+        asset = data_source.get_image_asset(column, filename)
+        if asset is None:
+            return Response(status_code=404)
+        return Response(content=asset.content, media_type=asset.mime)
+
     # Database connection
 
     @lru_cache(maxsize=1)

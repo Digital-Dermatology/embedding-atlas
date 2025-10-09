@@ -12,6 +12,7 @@
   let { value = "", renderer, rendererOptions = {} }: Props = $props();
 
   let rendererClass = $derived(renderer != null ? (textRendererClasses[renderer] ?? null) : null);
+  let resolvedImage = $derived(imageToDataUrl(value));
 
   function action(element: HTMLDivElement, props: { class: any; value: any; options: Record<string, any> }) {
     let component = new props.class(element, { value: props.value, ...props.options });
@@ -29,8 +30,10 @@
 {#if rendererClass == null}
   {#if isLink(value)}
     <a href={value} class="underline" target="_blank">{value}</a>
+  {:else if resolvedImage}
+    <img src={resolvedImage} alt="" class="max-w-24 max-h-24" />
   {:else if isImage(value)}
-    <img src={imageToDataUrl(value)} alt="" class="max-w-24 max-h-24" />
+    <span class="text-slate-400 dark:text-slate-500">(image unavailable)</span>
   {:else}
     {stringify(value)}
   {/if}

@@ -7,6 +7,7 @@ from io import BytesIO
 
 import pandas as pd
 
+from .image_assets import IMAGE_RELATIVE_PATH, ImageAsset
 from .utils import cache_path, to_parquet_bytes
 
 
@@ -16,11 +17,15 @@ class DataSource:
         identifier: str,
         dataset: pd.DataFrame,
         metadata: dict,
+        image_assets: dict[str, dict[str, ImageAsset]] | None = None,
+        image_relative_path: str = IMAGE_RELATIVE_PATH,
     ):
         self.identifier = identifier
         self.dataset = dataset
         self.metadata = metadata
         self.cache_path = cache_path("cache", self.identifier)
+        self.image_assets = image_assets or {}
+        self.image_relative_path = image_relative_path
 
     def cache_set(self, name: str, data):
         path = self.cache_path / name
@@ -57,4 +62,16 @@ class DataSource:
                         os.path.relpath(os.path.join(root, fn), str(self.cache_path)),
                     )
                     zip.write(os.path.join(root, fn), p)
+            for column, assets in self.image_assets.items():
+                for filename, asset in assets.items():
+                    path = os.path.join(
+                        "data",
+                        self.image_relative_path,
+                        column,
+                        filename,
+                    )
+                    zip.writestr(path, asset.content)
         return io.getvalue()
+
+    def get_image_asset(self, column: str, filename: str) -> ImageAsset | None:
+        return self.image_assets.get(column, {}).get(filename)

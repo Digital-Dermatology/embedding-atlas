@@ -3,7 +3,8 @@
 import { createUMAP } from "@embedding-atlas/umap-wasm";
 import { load_image, pipeline } from "@huggingface/transformers";
 
-import { imageToDataUrl } from "../lib/image_utils";
+import { imageToDataUrl, setImageAssets } from "../lib/image_utils";
+import type { ImageAssetsConfig } from "../lib/image_utils";
 import { WorkerRPC } from "./worker_helper";
 
 let { handler, register } = WorkerRPC.runtime();
@@ -49,6 +50,10 @@ function makeEmbeddingComputer(runBatch: (data: any[]) => Promise<any>): Embeddi
     },
   };
 }
+
+register("embedding.assets", async (config: ImageAssetsConfig | null) => {
+  setImageAssets(config ?? null);
+});
 
 register("embedding.new", async (options: EmbeddingOptions) => {
   let instance = new Date().getTime() + "-" + Math.random();

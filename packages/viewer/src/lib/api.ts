@@ -11,6 +11,17 @@ import Component from "./EmbeddingAtlas.svelte";
 
 import cssCode from "../app.css?inline";
 
+export interface ImageAssetsSpec {
+  tokenPrefix: string;
+  baseUrl?: string | null;
+  relativePath?: string | null;
+  columns?: string[];
+}
+
+export interface EmbeddingAtlasAssets {
+  images?: ImageAssetsSpec | null;
+}
+
 export interface EmbeddingAtlasProps {
   /** The Mosaic coordinator. */
   coordinator: Coordinator;
@@ -71,6 +82,9 @@ export interface EmbeddingAtlasProps {
 
   /** A cache to speed up initialization of the viewer. */
   cache?: Cache | null;
+
+  /** Additional static assets for the viewer, such as image thumbnails. */
+  assets?: EmbeddingAtlasAssets | null;
 }
 
 export interface EmbeddingAtlasState {

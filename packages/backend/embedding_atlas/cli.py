@@ -14,6 +14,11 @@ import pandas as pd
 import uvicorn
 
 from .data_source import DataSource
+from .image_assets import (
+    IMAGE_RELATIVE_PATH,
+    IMAGE_TOKEN_PREFIX,
+    extract_image_assets,
+)
 from .options import make_embedding_atlas_props
 from .server import make_server
 from .utils import Hasher, load_huggingface_data, load_pandas_data
@@ -328,6 +333,8 @@ def main(
     id_column = find_column_name(df.columns, "_row_index")
     df[id_column] = range(df.shape[0])
 
+    image_assets, image_columns = extract_image_assets(df, id_column)
+
     stop_words_resolved = None
     if stop_words is not None:
         stop_words_df = load_pandas_data(stop_words)
@@ -352,6 +359,13 @@ def main(
     metadata = {
         "props": props,
     }
+    if image_assets:
+        props.setdefault("assets", {})
+        props["assets"]["images"] = {
+            "tokenPrefix": IMAGE_TOKEN_PREFIX,
+            "relativePath": IMAGE_RELATIVE_PATH,
+            "columns": sorted(image_columns),
+        }
 
     hasher = Hasher()
     hasher.update(__version__)
@@ -359,7 +373,13 @@ def main(
     hasher.update(metadata)
     identifier = hasher.hexdigest()
 
-    dataset = DataSource(identifier, df, metadata)
+    dataset = DataSource(
+        identifier,
+        df,
+        metadata,
+        image_assets=image_assets,
+        image_relative_path=IMAGE_RELATIVE_PATH,
+    )
 
     if static is None:
         static = str((pathlib.Path(__file__).parent / "static").resolve())
