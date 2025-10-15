@@ -64,13 +64,14 @@ class DataSource:
                     zip.write(os.path.join(root, fn), p)
             for column, assets in self.image_assets.items():
                 for filename, asset in assets.items():
+                    content, _mime = asset.load()
                     path = os.path.join(
                         "data",
                         self.image_relative_path,
                         column,
                         filename,
                     )
-                    zip.writestr(path, asset.content)
+                    zip.writestr(path, content)
         return io.getvalue()
 
     def get_image_asset(self, column: str, filename: str) -> ImageAsset | None:

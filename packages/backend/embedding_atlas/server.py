@@ -84,7 +84,11 @@ def make_server(
         asset = data_source.get_image_asset(column, filename)
         if asset is None:
             return Response(status_code=404)
-        return Response(content=asset.content, media_type=asset.mime)
+        try:
+            content, mime = asset.load()
+        except FileNotFoundError:
+            return Response(status_code=404)
+        return Response(content=content, media_type=mime)
 
     if duckdb_uri == "server":
         duckdb_connection = make_duckdb_connection(data_source.dataset)
