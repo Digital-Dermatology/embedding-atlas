@@ -5,9 +5,10 @@ from __future__ import annotations
 import base64
 import math
 from collections import defaultdict
+from pathlib import Path
 from dataclasses import dataclass
 from io import BytesIO
-from typing import Iterable
+from typing import Iterable, Sequence
 
 import pandas as pd
 
@@ -51,7 +52,27 @@ def _decode_base64(text: str) -> bytes | None:
     return data
 
 
-def normalize_image_bytes(value) -> bytes | None:
+def _resolve_file(path_value: str, base_dir: Path | None = None) -> bytes | None:
+    path_candidate = Path(path_value)
+    candidates: list[Path] = []
+
+    if path_candidate.is_absolute():
+        candidates.append(path_candidate)
+    else:
+        if base_dir is not None:
+            candidates.append(Path(base_dir) / path_candidate)
+        candidates.append(path_candidate)
+
+    for candidate in candidates:
+        try:
+            with open(candidate, "rb") as f:
+                return f.read()
+        except OSError:
+            continue
+    return None
+
+
+def normalize_image_bytes(value, base_dir: Path | None = None) -> bytes | None:
     """Return image bytes for supported value types or None otherwise."""
     if value is None or _is_nan(value):
         return None
@@ -67,11 +88,9 @@ def normalize_image_bytes(value) -> bytes | None:
                 return decoded
         path_value = value.get("path")
         if isinstance(path_value, str):
-            try:
-                with open(path_value, "rb") as f:
-                    return f.read()
-            except OSError:
-                pass
+            resolved = _resolve_file(path_value, base_dir)
+            if resolved is not None:
+                return resolved
         array_value = value.get("array")
         if array_value is not None:
             bytes_from_array = _bytes_from_array(array_value)
@@ -84,6 +103,9 @@ def normalize_image_bytes(value) -> bytes | None:
         decoded = _decode_base64(value)
         if decoded is not None:
             return decoded
+        resolved = _resolve_file(value, base_dir)
+        if resolved is not None:
+            return resolved
     pil_bytes = _bytes_from_pil_image(value)
     if pil_bytes is not None:
         return pil_bytes
@@ -184,6 +206,7 @@ def extract_image_assets(
     df: pd.DataFrame,
     id_column: str,
     max_thumbnail: int = DEFAULT_THUMBNAIL_SIZE,
+    source_dirs: pd.Series | None = None,
 ) -> tuple[dict[str, dict[str, ImageAsset]], set[str]]:
     """Replace image-like values with lightweight tokens and return serialized assets."""
     assets: dict[str, dict[str, ImageAsset]] = defaultdict(dict)
@@ -194,7 +217,15 @@ def extract_image_assets(
         updated_rows = False
 
         for index, value in series.items():
-            bytes_value = normalize_image_bytes(value)
+            base_dir = None
+            if source_dirs is not None:
+                try:
+                    base_dir_value = source_dirs.loc[index]
+                except KeyError:
+                    base_dir_value = None
+                if isinstance(base_dir_value, (str, Path)):
+                    base_dir = Path(base_dir_value)
+            bytes_value = normalize_image_bytes(value, base_dir=base_dir)
             if bytes_value is None:
                 continue
 

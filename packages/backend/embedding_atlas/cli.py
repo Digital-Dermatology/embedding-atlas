@@ -54,6 +54,9 @@ def determine_and_load_data(filename: str, splits: list[str] | None = None):
     return df
 
 
+SOURCE_DIR_COLUMN_NAME = "__embedding_atlas_source_dir__"
+
+
 def load_datasets(
     inputs: list[str], splits: list[str] | None = None, sample: int | None = None
 ) -> pd.DataFrame:
@@ -62,6 +65,17 @@ def load_datasets(
     for fn in inputs:
         print("Loading data from " + fn)
         df = determine_and_load_data(fn, splits=splits)
+        source_path_str: str | None = None
+        if "://" not in fn:
+            source_path = pathlib.Path(fn)
+            try:
+                if source_path.is_file():
+                    source_path_str = str(source_path.resolve().parent)
+                elif source_path.exists():
+                    source_path_str = str(source_path.resolve())
+            except OSError:
+                source_path_str = None
+        df[SOURCE_DIR_COLUMN_NAME] = source_path_str
         dataframes.append(df)
         for c in df.columns:
             existing_column_names.add(c)
@@ -333,7 +347,12 @@ def main(
     id_column = find_column_name(df.columns, "_row_index")
     df[id_column] = range(df.shape[0])
 
-    image_assets, image_columns = extract_image_assets(df, id_column)
+    source_dirs = df[SOURCE_DIR_COLUMN_NAME] if SOURCE_DIR_COLUMN_NAME in df.columns else None
+    image_assets, image_columns = extract_image_assets(
+        df, id_column, source_dirs=source_dirs
+    )
+    if SOURCE_DIR_COLUMN_NAME in df.columns:
+        df = df.drop(columns=[SOURCE_DIR_COLUMN_NAME])
 
     stop_words_resolved = None
     if stop_words is not None:
