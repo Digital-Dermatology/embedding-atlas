@@ -49,6 +49,7 @@
   import { querySearchResultItems, resolveSearcher, type SearchResultItem } from "./search.js";
   import { tableTheme } from "./table_theme.js";
   import { debounce, startDrag } from "./utils.js";
+  import skinmapLogo from "../assets/atlas.png";
 
   const searchLimit = 500;
 
@@ -61,6 +62,7 @@
     data,
     initialState,
     searcher: specifiedSearcher,
+    searchColumns = null,
     embeddingViewConfig = null,
     embeddingViewLabels = null,
     colorScheme,
@@ -190,6 +192,7 @@
       textColumn: data.text,
       neighborsColumn: data.neighbors,
       searcher: specifiedSearcher,
+      textColumns: searchColumns,
     }),
   );
 
@@ -473,11 +476,23 @@
   >
     <div class="m-2 flex flex-row justify-between items-center">
       <div class="flex flex-row flex-1 justify-between">
-        <div class="flex flex-row items-center">
+        <div class="flex flex-row items-center gap-4">
+          <div
+            class="flex items-center gap-3 pr-4 border-r border-slate-300 dark:border-slate-700 mr-2"
+            aria-label="SkinMap"
+          >
+            <img src={skinmapLogo} alt="SkinMap logo" class="h-8 w-auto rounded-md shadow-sm shadow-slate-400/30" />
+            <div class="text-lg font-semibold tracking-wide text-slate-700 dark:text-slate-200">SkinMap</div>
+          </div>
           <div class="flex-1">
             {#if searcher}
               <div class="relative">
-                <Input type="search" placeholder="Search..." className="w-64" bind:value={searchQuery} />
+                <Input
+                  type="search"
+                  placeholder="Search... (e.g., dermatitis)"
+                  className="w-80 text-base shadow-md shadow-slate-300/40 dark:shadow-black/40"
+                  bind:value={searchQuery}
+                />
                 {#if searchModeOptions.filter((x) => x.value != "neighbors").length > 1}
                   <Select
                     options={searchModeOptions.filter((x) => x.value != "neighbors")}
@@ -514,7 +529,7 @@
                 {/if}
               </div>
             {:else}
-              <div class="text-slate-500 dark:text-slate-400">Embedding Atlas</div>
+              <div class="text-slate-500 dark:text-slate-400">SkinMap</div>
             {/if}
           </div>
         </div>

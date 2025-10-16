@@ -12,6 +12,7 @@
   import { type ExportFormat } from "./lib/mosaic_exporter.js";
   import { debounce } from "./lib/utils.js";
   import { getQueryPayload, setQueryPayload } from "./query_payload.js";
+  import skinmapLogo from "./assets/atlas.png";
 
   const coordinator = defaultCoordinator();
 
@@ -27,20 +28,27 @@
   let initialState: any | null = $state.raw(null);
   let config: Partial<EmbeddingAtlasProps> | null = $state.raw(null);
 
-  onMount(async () => {
-    try {
-      initialState = await getQueryPayload();
-      status = "Initializing database...";
-      config = await dataSource.initializeCoordinator(coordinator, "dataset", (s) => {
-        status = s;
-      });
-      ready = true;
-    } catch (e: any) {
-      error = true;
-      status = e.message;
-      return;
+onMount(async () => {
+  try {
+    let urlState = await getQueryPayload();
+    status = "Initializing database...";
+    config = await dataSource.initializeCoordinator(coordinator, "dataset", (s) => {
+      status = s;
+    });
+    if (urlState != null) {
+      initialState = urlState;
+    } else if (config?.initialState != null) {
+      initialState = config.initialState;
+    } else {
+      initialState = null;
     }
-  });
+    ready = true;
+  } catch (e: any) {
+    error = true;
+    status = e.message;
+    return;
+  }
+});
 
   async function onExportSelection(predicate: string | null, format: ExportFormat) {
     if (dataSource.downloadSelection) {
@@ -82,13 +90,20 @@
       class="w-full h-full grid place-content-center select-none text-slate-800 bg-slate-200 dark:text-slate-200 dark:bg-slate-800"
       class:dark={$systemDarkMode}
     >
-      {#if error}
-        <div class="text-red-600" style:max-width="36rem">{status}</div>
-      {:else}
-        <div class="w-72">
-          <Spinner status={status} />
+      <div class="flex flex-col items-center gap-6 text-center">
+        <img src={skinmapLogo} alt="SkinMap logo" class="w-32 h-auto rounded-xl shadow-lg shadow-slate-400/40" />
+        <div class="flex flex-col items-center gap-1">
+          <span class="text-2xl font-semibold tracking-wide">SkinMap</span>
+          <span class="text-sm text-slate-500 dark:text-slate-400">Dermatology Embedding Atlas</span>
         </div>
-      {/if}
+        {#if error}
+          <div class="max-w-md text-red-500 dark:text-red-400">{status}</div>
+        {:else}
+          <div class="w-72">
+            <Spinner status={status} />
+          </div>
+        {/if}
+      </div>
     </div>
   {/if}
 </div>

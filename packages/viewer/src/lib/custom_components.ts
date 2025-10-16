@@ -7,6 +7,7 @@ import { createClassComponent } from "svelte/legacy";
 import SearchResultOverlay from "./SearchResultOverlay.svelte";
 import Tooltip from "./Tooltip.svelte";
 
+import type { ColumnStyle } from "./renderers/index.js";
 import type { SearchResultItem } from "./search.js";
 
 function createCustomComponentClass<Props extends {}>(Component: Component<Props>): any {
@@ -30,6 +31,7 @@ function createCustomComponentClass<Props extends {}>(Component: Component<Props
 export const CustomTooltip = createCustomComponentClass<{
   tooltip: DataPoint;
   darkMode: boolean;
+  columnStyles?: Record<string, ColumnStyle>;
   onNearestNeighborSearch?: (id: any) => void;
 }>(Tooltip);
 

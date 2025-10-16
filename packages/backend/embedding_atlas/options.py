@@ -48,6 +48,14 @@ class EmbeddingAtlasOptions(TypedDict, total=False):
 
     show_embedding:
         Whether to display the embedding view when the widget opens.
+
+    initial_state:
+        A serialized Embedding Atlas state dictionary to load on startup. Overrides the
+        defaults above and is useful for pinning a canonical layout/tooling configuration.
+
+    search_columns:
+        A list of column names to include in full-text search. When provided, searches will
+        index the concatenation of these columns (in addition to any `text` column supplied).
     """
 
     table: str | None
@@ -65,6 +73,9 @@ class EmbeddingAtlasOptions(TypedDict, total=False):
     show_table: bool | None
     show_charts: bool | None
     show_embedding: bool | None
+
+    initial_state: dict | None
+    search_columns: list[str] | None
 
 
 def make_embedding_atlas_props(**options: Unpack[EmbeddingAtlasOptions]) -> dict:
@@ -114,6 +125,14 @@ def make_embedding_atlas_props(**options: Unpack[EmbeddingAtlasOptions]) -> dict
     set_prop("initialState.view.showSidebar", options.get("show_charts"))
     set_prop("initialState.view.showEmbedding", options.get("show_embedding"))
 
-    set_prop("initialState.version", "0.0.0")
+    initial_state = options.get("initial_state")
+    if initial_state is not None:
+        set_prop("initialState", initial_state)
+        if "version" not in initial_state:
+            set_prop("initialState.version", "0.0.0")
+    else:
+        set_prop("initialState.version", "0.0.0")
+
+    set_prop("searchColumns", options.get("search_columns"))
 
     return props

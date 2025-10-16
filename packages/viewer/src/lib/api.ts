@@ -66,6 +66,10 @@ export interface EmbeddingAtlasProps {
    *  If set to null, search will be disabled. */
   searcher?: Searcher | null;
 
+  /** Additional columns to include in full-text search. When provided, the viewer will concatenate
+   *  these columns (plus the `text` column, if configured) when building the search index. */
+  searchColumns?: string[] | null;
+
   /** Custom cell renderers for the table view. */
   tableCellRenderers?: Record<string, CustomCell | "markdown">;
 

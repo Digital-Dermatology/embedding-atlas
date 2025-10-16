@@ -297,21 +297,21 @@ def compute_vector_projection(
 
     # Convert each vector entry to numpy array and stack them
     vector_list = []
-    for vector in vector_series:
-        if isinstance(vector, list):
-            vector_array = np.array(vector)
-        elif isinstance(vector, np.ndarray):
-            vector_array = vector
+    for vector_value in vector_series:
+        if isinstance(vector_value, list):
+            vector_array = np.array(vector_value)
+        elif isinstance(vector_value, np.ndarray):
+            vector_array = vector_value
         else:
             # Try to convert to numpy array
-            vector_array = np.array(vector)
+            vector_array = np.array(vector_value)
         vector_list.append(vector_array)
 
-    # Stack all vectors into a single numpy array
-    hidden_vectors = np.stack(vector_list)
+    # Stack all vectors into a single numpy array with consistent dtype for hashing/caching.
+    hidden_vectors = np.stack(vector_list).astype("float32", copy=False)
 
-    # Run UMAP on the pre-existing vectors
-    proj = _run_umap(hidden_vectors, umap_args)
+    # Run UMAP on the pre-existing vectors (cached if available).
+    proj = _projection_for_vectors(hidden_vectors, umap_args)
 
     # Add projection results to dataframe
     data_frame[x] = proj.projection[:, 0]
@@ -321,6 +321,30 @@ def compute_vector_projection(
             {"distances": b, "ids": a}  # ID is always the same as the row index.
             for a, b in zip(proj.knn_indices, proj.knn_distances)
         ]
+
+
+def _projection_for_vectors(
+    hidden_vectors: np.ndarray,
+    umap_args: dict = {},
+) -> Projection:
+    hasher = Hasher()
+    hasher.update(
+        {
+            "version": 1,
+            "vectors": hidden_vectors,
+            "umap_args": umap_args,
+        }
+    )
+    digest = hasher.hexdigest()
+    cpath = cache_path("projections") / digest
+
+    if Projection.exists(cpath):
+        logger.info("Using cached vector projection from %s", str(cpath))  # type: ignore
+        return Projection.load(cpath)
+
+    proj = _run_umap(hidden_vectors, umap_args)
+    Projection.save(cpath, proj)
+    return proj
 
 
 def compute_image_projection(

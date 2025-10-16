@@ -6,6 +6,7 @@ import json
 import os
 import re
 import uuid
+import threading
 from functools import lru_cache
 from typing import Callable
 
@@ -90,16 +91,26 @@ def make_server(
             return Response(status_code=404)
         return Response(content=content, media_type=mime)
 
-    if duckdb_uri == "server":
-        duckdb_connection = make_duckdb_connection(data_source.dataset)
-    else:
-        duckdb_connection = None
+    duckdb_connection_holder: dict[str, duckdb.DuckDBPyConnection | None] = {"conn": None}
+    duckdb_connection_lock = threading.Lock()
 
-    if duckdb_connection is not None:
+    def get_duckdb_connection() -> duckdb.DuckDBPyConnection:
+        conn = duckdb_connection_holder["conn"]
+        if conn is not None:
+            return conn
+        with duckdb_connection_lock:
+            conn = duckdb_connection_holder["conn"]
+            if conn is None:
+                duckdb_connection_holder["conn"] = make_duckdb_connection(data_source.dataset)
+                conn = duckdb_connection_holder["conn"]
+        return conn
+
+    if duckdb_uri == "server":
         def handle_query(query: dict):
             sql = query["sql"]
             command = query["type"]
-            with duckdb_connection.cursor() as cursor:
+            conn = get_duckdb_connection()
+            with conn.cursor() as cursor:
                 try:
                     result = cursor.execute(sql)
                     if command == "exec":
@@ -128,7 +139,8 @@ def make_server(
                 "csv": "(FORMAT CSV)",
                 "parquet": "(FORMAT parquet)",
             }
-            with duckdb_connection.cursor() as cursor:
+            conn = get_duckdb_connection()
+            with conn.cursor() as cursor:
                 filename = ".selection-" + str(uuid.uuid4()) + ".tmp"
                 try:
                     if predicate is not None:
