@@ -80,11 +80,16 @@ export class FullTextSearcher implements Searcher {
       return;
     }
 
-    let textColumns = Array.isArray(this.columns.text) ? this.columns.text : [this.columns.text];
+    let textColumns = (Array.isArray(this.columns.text) ? this.columns.text : [this.columns.text]).filter(
+      (col): col is string => col != null && col !== "",
+    );
     if (textColumns.length == 0) {
       return;
     }
-    let textExpressions = textColumns.map((column) => `COALESCE(${SQL.column(column)}::TEXT, '')`);
+    // TRY_CAST prevents DuckDB from aborting if a column isn't representable as text (e.g., blobs)
+    let textExpressions = textColumns.map(
+      (column) => `COALESCE(TRY_CAST(${SQL.column(column)} AS TEXT), '')`,
+    );
     let textExpr =
       textExpressions.length == 1 ? textExpressions[0] : `concat_ws(' ', ${textExpressions.join(", ")})`;
 
@@ -214,15 +219,17 @@ export function resolveSearcher(options: {
     if (textColumn != null && textColumnsForSearch.indexOf(textColumn) < 0) {
       textColumnsForSearch.unshift(textColumn);
     }
-    // Remove duplicates while preserving order
+    // Remove duplicates while preserving order and drop invalid entries
     let seen = new Set<string>();
-    textColumnsForSearch = textColumnsForSearch.filter((col) => {
-      if (seen.has(col)) {
-        return false;
-      }
-      seen.add(col);
-      return true;
-    });
+    textColumnsForSearch = textColumnsForSearch
+      .filter((col): col is string => col != null && col !== "")
+      .filter((col) => {
+        if (seen.has(col)) {
+          return false;
+        }
+        seen.add(col);
+        return true;
+      });
     if (textColumnsForSearch.length > 0) {
       let fts = new FullTextSearcher(coordinator, table, { id: idColumn, text: textColumnsForSearch });
       result.fullTextSearch = fts.fullTextSearch.bind(fts);
