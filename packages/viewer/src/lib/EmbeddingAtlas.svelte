@@ -481,7 +481,7 @@
             class="flex items-center gap-3 pr-4 border-r border-slate-300 dark:border-slate-700 mr-2"
             aria-label="SkinMap"
           >
-            <img src={skinmapLogo} alt="SkinMap logo" class="h-8 w-auto rounded-md shadow-sm shadow-slate-400/30" />
+            <img src={skinmapLogo} alt="SkinMap logo" class="h-8 w-auto rounded-md" />
             <div class="text-lg font-semibold tracking-wide text-slate-700 dark:text-slate-200">SkinMap</div>
           </div>
           <div class="flex-1">

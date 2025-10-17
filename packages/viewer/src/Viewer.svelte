@@ -91,7 +91,7 @@ onMount(async () => {
       class:dark={$systemDarkMode}
     >
       <div class="flex flex-col items-center gap-6 text-center">
-        <img src={skinmapLogo} alt="SkinMap logo" class="w-32 h-auto rounded-xl shadow-lg shadow-slate-400/40" />
+        <img src={skinmapLogo} alt="SkinMap logo" class="w-32 h-auto rounded-xl" />
         <div class="flex flex-col items-center gap-1">
           <span class="text-2xl font-semibold tracking-wide">SkinMap</span>
           <span class="text-sm text-slate-500 dark:text-slate-400">Dermatology Embedding Atlas</span>
