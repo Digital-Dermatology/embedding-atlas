@@ -152,7 +152,7 @@ export class TableInfo {
           });
           break;
         case "number":
-          if (item.distinctCount <= 10) {
+          if (item.distinctCount <= 15) {
             plots.push({
               id: plotUniqueId(),
               title: item.name,

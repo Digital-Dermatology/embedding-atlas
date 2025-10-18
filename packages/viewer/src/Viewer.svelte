@@ -99,7 +99,7 @@ onMount(async () => {
         {#if error}
           <div class="max-w-md text-red-500 dark:text-red-400">{status}</div>
         {:else}
-          <div class="w-72">
+          <div class="w-72 flex justify-center">
             <Spinner status={status} />
           </div>
         {/if}
