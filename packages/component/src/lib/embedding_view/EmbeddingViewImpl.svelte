@@ -317,43 +317,70 @@
     });
   }
 
-  function setupWebGPURenderer(canvas: HTMLCanvasElement) {
-    async function createRenderer() {
-      let context = canvas.getContext("webgpu");
+  function setupWebGLFallback(canvas: HTMLCanvasElement) {
+    setupWebGLRenderer(canvas);
+    webGPUPrompt = "WebGPU is unavailable. If you are using Safari, please enable the WebGPU feature flag.";
+  }
+
+  function setupWebGPURenderer(canvas: HTMLCanvasElement): Promise<boolean> {
+    async function createRenderer(): Promise<boolean> {
+      const context = canvas.getContext("webgpu");
       if (context == null) {
-        console.error("Could not get WebGPU canvas context");
-        return;
+        console.warn("Could not get WebGPU canvas context");
+        return false;
       }
 
-      let adapter = await navigator.gpu.requestAdapter();
+      let adapter: GPUAdapter | null;
+      try {
+        adapter = await navigator.gpu.requestAdapter();
+      } catch (error) {
+        console.warn("Failed to request WebGPU adapter; falling back to WebGL.", error);
+        adapter = null;
+      }
       if (!adapter) {
-        console.error("Could not request WebGPU adapter");
-        return;
+        console.warn("WebGPU adapter unavailable; falling back to WebGL.");
+        return false;
+      }
+
+      if (!adapter.features.has("shader-f16")) {
+        console.warn('WebGPU adapter missing required feature "shader-f16"; falling back to WebGL.');
+        return false;
       }
 
       let maxBufferSize = 512 * 1048576;
       let maxStorageBufferBindingSize = 512 * 1048576;
       maxBufferSize = Math.min(maxBufferSize, adapter.limits.maxBufferSize);
       maxStorageBufferBindingSize = Math.min(maxStorageBufferBindingSize, adapter.limits.maxStorageBufferBindingSize);
-      let descriptor: GPUDeviceDescriptor = {
+      const descriptor: GPUDeviceDescriptor = {
         requiredLimits: {
           maxBufferSize: maxBufferSize,
           maxStorageBufferBindingSize: maxStorageBufferBindingSize,
         },
         requiredFeatures: ["shader-f16"],
       };
-      let device = await adapter.requestDevice(descriptor);
+
+      let device: GPUDevice;
+      try {
+        device = await adapter.requestDevice(descriptor);
+      } catch (error) {
+        console.warn("Failed to request WebGPU device; falling back to WebGL.", error);
+        return false;
+      }
 
       device.lost.then((info) => {
         console.info(`WebGPU device was lost: ${info.message}`);
         if (info.reason != "destroyed") {
           renderer?.destroy();
           renderer = null;
-          createRenderer();
+          createRenderer().then((success) => {
+            if (!success) {
+              setupWebGLFallback(canvas);
+            }
+          });
         }
       });
 
-      let format = navigator.gpu.getPreferredCanvasFormat();
+      const format = navigator.gpu.getPreferredCanvasFormat();
 
       context.configure({
         device: device,
@@ -362,9 +389,10 @@
       });
 
       renderer = new EmbeddingRendererWebGPU(context, device, format, pixelWidth, pixelHeight);
+      return true;
     }
 
-    createRenderer();
+    return createRenderer();
   }
 
   function syncViewportState(defaultViewportState: ViewportState | null) {
@@ -380,10 +408,13 @@
       return;
     }
     if (isWebGPUAvailable()) {
-      setupWebGPURenderer(canvas);
+      setupWebGPURenderer(canvas).then((success) => {
+        if (!success) {
+          setupWebGLFallback(canvas);
+        }
+      });
     } else {
-      setupWebGLRenderer(canvas);
-      webGPUPrompt = "WebGPU is unavailable. If you are using Safari, please enable the WebGPU feature flag.";
+      setupWebGLFallback(canvas);
     }
   });
 
