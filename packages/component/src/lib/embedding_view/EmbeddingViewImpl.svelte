@@ -294,18 +294,23 @@
   }
 
   function setupWebGLRenderer(canvas: HTMLCanvasElement): boolean {
-    let context: WebGL2RenderingContext | null;
+    let context: WebGL2RenderingContext | null = null;
 
-    function createRenderer() {
-      context = canvas.getContext("webgl2", { antialias: false }) as WebGL2RenderingContext | null;
-      if (context == null) {
+    function createRenderer(): boolean {
+      const gl = canvas.getContext("webgl2", { antialias: false }) as WebGL2RenderingContext | null;
+      if (gl == null) {
         console.error("Could not create WebGL2 context");
         return false;
       }
-      context.getExtension("EXT_color_buffer_float");
-      context.getExtension("EXT_float_blend");
-      context.getExtension("OES_texture_float_linear");
-      renderer = new EmbeddingRendererWebGL2(context, pixelWidth, pixelHeight);
+      context = gl;
+      try {
+        gl.getExtension("EXT_color_buffer_float");
+        gl.getExtension("EXT_float_blend");
+        gl.getExtension("OES_texture_float_linear");
+      } catch (error) {
+        console.warn("Failed to enable WebGL2 extensions", error);
+      }
+      renderer = new EmbeddingRendererWebGL2(gl, pixelWidth, pixelHeight);
       return true;
     }
 
@@ -327,8 +332,10 @@
   }
 
   function setupWebGLFallback(canvas: HTMLCanvasElement) {
-    if (setupWebGLRenderer(canvas)) {
-      webGPUPrompt = "WebGPU is unavailable. If you are using Safari, please enable the WebGPU feature flag.";
+    const success = setupWebGLRenderer(canvas);
+    if (success) {
+      webGPUPrompt =
+        "WebGPU is unavailable. If you are using Safari, please enable the WebGPU feature flag. Running in WebGL2 fallback.";
     } else {
       webGPUPrompt = "WebGL2 context creation failed. Please ensure WebGL2 is enabled for this browser.";
     }
