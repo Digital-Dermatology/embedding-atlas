@@ -53,7 +53,7 @@
 
   const searchLimit = 500;
 
-  const maxCategories = Math.min(20, maxDensityModeCategories());
+  let densityCategoryLimit: number = $state(Math.min(20, maxDensityModeCategories()));
 
   const animationDuration = 300;
 
@@ -80,6 +80,24 @@
   Context.darkMode = darkMode;
 
   setImageAssets(assets?.images ?? null);
+
+  onMount(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const listener = (event: Event) => {
+      let detail = (event as CustomEvent<number>).detail;
+      let limit = Math.min(20, detail ?? maxDensityModeCategories());
+      if (densityCategoryLimit !== limit) {
+        densityCategoryLimit = limit;
+        setCategoryColumn(selectedCategoryColumn);
+      }
+    };
+    window.addEventListener("embedding-atlas-density-limit-changed", listener);
+    return () => {
+      window.removeEventListener("embedding-atlas-density-limit-changed", listener);
+    };
+  });
   $effect(() => {
     setImageAssets(assets?.images ?? null);
   });
@@ -322,7 +340,7 @@
       return;
     }
     categoryLegend = result;
-    if (result.legend.length > maxCategories) {
+    if (result.legend.length > densityCategoryLimit) {
       embeddingViewMode = "points";
     }
   }
@@ -554,7 +572,7 @@
               label="Display"
               value={embeddingViewMode}
               onChange={(v) => (embeddingViewMode = v)}
-              disabled={categoryLegend != null && categoryLegend.legend.length > maxCategories}
+              disabled={categoryLegend != null && categoryLegend.legend.length > densityCategoryLimit}
               options={[
                 { value: "points", label: "Points" },
                 { value: "density", label: "Density" },

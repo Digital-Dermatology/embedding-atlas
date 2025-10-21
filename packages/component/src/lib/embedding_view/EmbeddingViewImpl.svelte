@@ -121,6 +121,7 @@
   import { resolveTheme, type ThemeConfig } from "./theme.js";
   import type { Cache, CustomComponent, Label, OverlayProxy } from "./types.js";
   import { findClusters } from "./worker/index.js";
+  import { overrideMaxDensityModeCategories } from "./api.js";
 
   interface SelectionBase {
     x: number;
@@ -334,9 +335,11 @@
   function setupWebGLFallback(canvas: HTMLCanvasElement) {
     const success = setupWebGLRenderer(canvas);
     if (success) {
+      overrideMaxDensityModeCategories(4);
       webGPUPrompt =
         "WebGPU is unavailable. If you are using Safari, please enable the WebGPU feature flag. Running in WebGL2 fallback.";
     } else {
+      overrideMaxDensityModeCategories(4);
       webGPUPrompt = "WebGL2 context creation failed. Please ensure WebGL2 is enabled for this browser.";
     }
   }
@@ -414,6 +417,7 @@
         }
 
         renderer = new EmbeddingRendererWebGPU(context, device, format, pixelWidth, pixelHeight);
+        overrideMaxDensityModeCategories(32);
         return true;
       } catch (error) {
         console.warn("Failed to initialize WebGPU renderer; falling back to WebGL.", error);
