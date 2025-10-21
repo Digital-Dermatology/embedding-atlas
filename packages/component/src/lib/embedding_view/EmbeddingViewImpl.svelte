@@ -293,18 +293,25 @@
     }
   }
 
-  function setupWebGLRenderer(canvas: HTMLCanvasElement) {
+  function setupWebGLRenderer(canvas: HTMLCanvasElement): boolean {
     let context: WebGL2RenderingContext | null;
 
     function createRenderer() {
-      context = canvas.getContext("webgl2", { antialias: false })!;
+      context = canvas.getContext("webgl2", { antialias: false }) as WebGL2RenderingContext | null;
+      if (context == null) {
+        console.error("Could not create WebGL2 context");
+        return false;
+      }
       context.getExtension("EXT_color_buffer_float");
       context.getExtension("EXT_float_blend");
       context.getExtension("OES_texture_float_linear");
       renderer = new EmbeddingRendererWebGL2(context, pixelWidth, pixelHeight);
+      return true;
     }
 
-    createRenderer();
+    if (!createRenderer()) {
+      return false;
+    }
 
     canvas.addEventListener("webglcontextlost", () => {
       renderer?.destroy();
@@ -315,24 +322,24 @@
     canvas.addEventListener("webglcontextrestored", () => {
       createRenderer();
     });
+
+    return true;
   }
 
   function setupWebGLFallback(canvas: HTMLCanvasElement) {
-    setupWebGLRenderer(canvas);
-    webGPUPrompt = "WebGPU is unavailable. If you are using Safari, please enable the WebGPU feature flag.";
+    if (setupWebGLRenderer(canvas)) {
+      webGPUPrompt = "WebGPU is unavailable. If you are using Safari, please enable the WebGPU feature flag.";
+    } else {
+      webGPUPrompt = "WebGL2 context creation failed. Please ensure WebGL2 is enabled for this browser.";
+    }
   }
 
   function setupWebGPURenderer(canvas: HTMLCanvasElement): Promise<boolean> {
     async function createRenderer(): Promise<boolean> {
-      let context: GPUCanvasContext | null = null;
       let adapter: GPUAdapter | null = null;
       let device: GPUDevice | null = null;
+      let context: GPUCanvasContext | null = null;
       try {
-        context = canvas.getContext("webgpu");
-        if (context == null) {
-          throw new Error("Could not acquire WebGPU canvas context");
-        }
-
         try {
           adapter = await navigator.gpu.requestAdapter();
         } catch (error) {
@@ -383,6 +390,11 @@
           }
         });
 
+        context = canvas.getContext("webgpu");
+        if (context == null) {
+          throw new Error("Could not acquire WebGPU canvas context");
+        }
+
         const format = navigator.gpu.getPreferredCanvasFormat();
         try {
           context.configure({
@@ -398,11 +410,12 @@
         return true;
       } catch (error) {
         console.warn("Failed to initialize WebGPU renderer; falling back to WebGL.", error);
-        if (device != null) {
-          try {
-            device.destroy?.();
-          } catch {}
-        }
+        try {
+          context?.unconfigure?.();
+        } catch {}
+        try {
+          device?.destroy?.();
+        } catch {}
         return false;
       }
     }
@@ -422,15 +435,15 @@
     if (canvas == null) {
       return;
     }
-    if (isWebGPUAvailable()) {
-      setupWebGPURenderer(canvas).then((success) => {
-        if (!success) {
-          setupWebGLFallback(canvas);
+    (async () => {
+      if (isWebGPUAvailable()) {
+        let success = await setupWebGPURenderer(canvas);
+        if (success) {
+          return;
         }
-      });
-    } else {
+      }
       setupWebGLFallback(canvas);
-    }
+    })();
   });
 
   onDestroy(() => {
