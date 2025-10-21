@@ -324,72 +324,87 @@
 
   function setupWebGPURenderer(canvas: HTMLCanvasElement): Promise<boolean> {
     async function createRenderer(): Promise<boolean> {
-      const context = canvas.getContext("webgpu");
-      if (context == null) {
-        console.warn("Could not get WebGPU canvas context");
-        return false;
-      }
-
-      let adapter: GPUAdapter | null;
+      let context: GPUCanvasContext | null = null;
+      let adapter: GPUAdapter | null = null;
+      let device: GPUDevice | null = null;
       try {
-        adapter = await navigator.gpu.requestAdapter();
-      } catch (error) {
-        console.warn("Failed to request WebGPU adapter; falling back to WebGL.", error);
-        adapter = null;
-      }
-      if (!adapter) {
-        console.warn("WebGPU adapter unavailable; falling back to WebGL.");
-        return false;
-      }
-
-      if (!adapter.features.has("shader-f16")) {
-        console.warn('WebGPU adapter missing required feature "shader-f16"; falling back to WebGL.');
-        return false;
-      }
-
-      let maxBufferSize = 512 * 1048576;
-      let maxStorageBufferBindingSize = 512 * 1048576;
-      maxBufferSize = Math.min(maxBufferSize, adapter.limits.maxBufferSize);
-      maxStorageBufferBindingSize = Math.min(maxStorageBufferBindingSize, adapter.limits.maxStorageBufferBindingSize);
-      const descriptor: GPUDeviceDescriptor = {
-        requiredLimits: {
-          maxBufferSize: maxBufferSize,
-          maxStorageBufferBindingSize: maxStorageBufferBindingSize,
-        },
-        requiredFeatures: ["shader-f16"],
-      };
-
-      let device: GPUDevice;
-      try {
-        device = await adapter.requestDevice(descriptor);
-      } catch (error) {
-        console.warn("Failed to request WebGPU device; falling back to WebGL.", error);
-        return false;
-      }
-
-      device.lost.then((info) => {
-        console.info(`WebGPU device was lost: ${info.message}`);
-        if (info.reason != "destroyed") {
-          renderer?.destroy();
-          renderer = null;
-          createRenderer().then((success) => {
-            if (!success) {
-              setupWebGLFallback(canvas);
-            }
-          });
+        context = canvas.getContext("webgpu");
+        if (context == null) {
+          throw new Error("Could not acquire WebGPU canvas context");
         }
-      });
 
-      const format = navigator.gpu.getPreferredCanvasFormat();
+        try {
+          adapter = await navigator.gpu.requestAdapter();
+        } catch (error) {
+          throw new Error(`Failed to request WebGPU adapter: ${String(error)}`);
+        }
+        if (adapter == null) {
+          throw new Error("WebGPU adapter unavailable");
+        }
 
-      context.configure({
-        device: device,
-        format: format,
-        alphaMode: "premultiplied",
-      });
+        let hasF16 = false;
+        try {
+          hasF16 = adapter.features?.has?.("shader-f16") ?? false;
+        } catch {
+          hasF16 = false;
+        }
+        if (!hasF16) {
+          throw new Error('WebGPU adapter missing required feature "shader-f16"');
+        }
 
-      renderer = new EmbeddingRendererWebGPU(context, device, format, pixelWidth, pixelHeight);
-      return true;
+        let maxBufferSize = 512 * 1048576;
+        let maxStorageBufferBindingSize = 512 * 1048576;
+        maxBufferSize = Math.min(maxBufferSize, adapter.limits.maxBufferSize);
+        maxStorageBufferBindingSize = Math.min(maxStorageBufferBindingSize, adapter.limits.maxStorageBufferBindingSize);
+        const descriptor: GPUDeviceDescriptor = {
+          requiredLimits: {
+            maxBufferSize: maxBufferSize,
+            maxStorageBufferBindingSize: maxStorageBufferBindingSize,
+          },
+          requiredFeatures: ["shader-f16"],
+        };
+
+        try {
+          device = await adapter.requestDevice(descriptor);
+        } catch (error) {
+          throw new Error(`Failed to request WebGPU device: ${String(error)}`);
+        }
+
+        device.lost.then((info) => {
+          console.info(`WebGPU device was lost: ${info.message}`);
+          if (info.reason != "destroyed") {
+            renderer?.destroy();
+            renderer = null;
+            createRenderer().then((success) => {
+              if (!success) {
+                setupWebGLFallback(canvas);
+              }
+            });
+          }
+        });
+
+        const format = navigator.gpu.getPreferredCanvasFormat();
+        try {
+          context.configure({
+            device: device,
+            format: format,
+            alphaMode: "premultiplied",
+          });
+        } catch (error) {
+          throw new Error(`Failed to configure WebGPU context: ${String(error)}`);
+        }
+
+        renderer = new EmbeddingRendererWebGPU(context, device, format, pixelWidth, pixelHeight);
+        return true;
+      } catch (error) {
+        console.warn("Failed to initialize WebGPU renderer; falling back to WebGL.", error);
+        if (device != null) {
+          try {
+            device.destroy?.();
+          } catch {}
+        }
+        return false;
+      }
     }
 
     return createRenderer();
