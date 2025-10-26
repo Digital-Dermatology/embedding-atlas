@@ -120,7 +120,7 @@
         step="1"
         value={topK}
         disabled={disabled || uploading}
-        on:input={(event) => updateTopK((event.target as HTMLInputElement).value)}
+        oninput={(event) => updateTopK((event.target as HTMLInputElement).value)}
       />
     </div>
     <Button
