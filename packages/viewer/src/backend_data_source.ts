@@ -31,6 +31,7 @@ interface Metadata {
     uri?: string;
     load?: boolean;
   };
+  uploadSearch?: EmbeddingAtlasProps["uploadSearch"];
 }
 
 export class BackendDataSource implements DataSource {
@@ -100,7 +101,11 @@ export class BackendDataSource implements DataSource {
       };
     }
 
-    return metadata.props;
+    let props: Partial<EmbeddingAtlasProps> = metadata.props ?? {};
+    if (metadata.uploadSearch) {
+      props = { ...props, uploadSearch: metadata.uploadSearch };
+    }
+    return props;
   }
 
   private async fetchEndpoint(endpoint: string, init?: RequestInit) {

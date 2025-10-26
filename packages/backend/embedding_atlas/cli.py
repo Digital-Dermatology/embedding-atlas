@@ -2,9 +2,11 @@
 
 """Command line interface."""
 
+import json
 import logging
 import pathlib
 import socket
+import sys
 from pathlib import Path
 
 import click
@@ -239,6 +241,18 @@ def find_available_port(start_port: int, max_attempts: int = 10, host="localhost
     default=None,
     help="Path to a file containing labels for the embedding view. The file should be a data frame with columns 'x', 'y', 'text', and optionally 'level' and 'priority'",
 )
+@click.option(
+    "--upload-config",
+    type=str,
+    default=None,
+    help="Path to SkinMap embedding_pipeline_config.json for enabling upload-based nearest-neighbor search.",
+)
+@click.option(
+    "--upload-device",
+    type=str,
+    default="cpu",
+    help="Device identifier to use for upload embedding inference (e.g., 'cpu' or 'cuda').",
+)
 @click.version_option(version=__version__, package_name="embedding_atlas")
 def main(
     inputs,
@@ -267,6 +281,8 @@ def main(
     point_size: float | None,
     stop_words: str | None,
     labels: str | None,
+    upload_config: str | None,
+    upload_device: str,
 ):
     logging.basicConfig(
         level=logging.INFO,
@@ -400,6 +416,43 @@ def main(
         image_relative_path=IMAGE_RELATIVE_PATH,
     )
 
+    upload_pipeline = None
+    if upload_config is not None:
+        upload_config_path = Path(upload_config).resolve()
+        try:
+            with open(upload_config_path, "r") as f:
+                upload_cfg = json.load(f)
+        except Exception as exc:
+            logging.error("Failed to load upload configuration %s: %s", upload_config_path, exc)
+        else:
+            skinmap_root = upload_cfg.get("skinmap_root")
+            candidate_paths = []
+            if skinmap_root:
+                candidate_paths.append(Path(skinmap_root))
+            candidate_paths.append(upload_config_path.parent.parent)
+            for candidate in candidate_paths:
+                try:
+                    resolved = candidate.resolve()
+                except Exception:
+                    continue
+                if resolved.exists() and str(resolved) not in sys.path:
+                    sys.path.append(str(resolved))
+            try:
+                from src.combined_embedder import CombinedEmbeddingPipeline
+
+                upload_pipeline = CombinedEmbeddingPipeline.from_config(
+                    upload_config_path, device=upload_device
+                )
+                metadata["uploadSearch"] = {
+                    "enabled": True,
+                    "endpoint": "upload-neighbors",
+                }
+            except Exception as exc:
+                logging.exception(
+                    "Failed to initialize upload embedding pipeline: %s", exc
+                )
+                upload_pipeline = None
+
     if static is None:
         static = str((pathlib.Path(__file__).parent / "static").resolve())
 
@@ -408,7 +461,12 @@ def main(
             f.write(dataset.make_archive(static))
         exit(0)
 
-    app = make_server(dataset, static_path=static, duckdb_uri=duckdb)
+    app = make_server(
+        dataset,
+        static_path=static,
+        duckdb_uri=duckdb,
+        upload_pipeline=upload_pipeline,
+    )
 
     if enable_auto_port:
         new_port = find_available_port(port, max_attempts=10, host=host)

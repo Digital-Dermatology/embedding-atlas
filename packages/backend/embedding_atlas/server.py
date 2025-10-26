@@ -5,13 +5,13 @@ import concurrent.futures
 import json
 import os
 import re
-import uuid
 import threading
+import uuid
 from functools import lru_cache
 from typing import Callable
 
 import duckdb
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, File, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -24,6 +24,7 @@ def make_server(
     data_source: DataSource,
     static_path: str,
     duckdb_uri: str | None = None,
+    upload_pipeline=None,
 ):
     """Creates a server for hosting Embedding Atlas"""
 
@@ -42,6 +43,12 @@ def make_server(
         "application/octet-stream",
         lambda: to_parquet_bytes(data_source.dataset),
     )
+
+    metadata_props = data_source.metadata.get("props", {}) if isinstance(data_source.metadata, dict) else {}
+    data_meta = metadata_props.get("data", {}) if isinstance(metadata_props, dict) else {}
+    id_column = data_meta.get("id")
+    dataset_df = data_source.dataset
+    total_rows = len(dataset_df)
 
     @app.get("/data/metadata.json")
     async def get_metadata():
@@ -79,6 +86,37 @@ def make_server(
     async def make_archive():
         data = data_source.make_archive(static_path)
         return Response(content=data, media_type="application/zip")
+
+    @app.post("/data/upload-neighbors")
+    async def upload_neighbors(file: UploadFile = File(...), k: int = 16):
+        if upload_pipeline is None:
+            return JSONResponse({"error": "Upload search unavailable."}, status_code=404)
+
+        try:
+            contents = await file.read()
+        except Exception as exc:
+            return JSONResponse({"error": f"Failed to read upload: {exc}"}, status_code=400)
+
+        try:
+            indices, distances = upload_pipeline.search_image(contents, k=max(1, min(k, 200)))
+        except Exception as exc:
+            return JSONResponse({"error": f"Failed to process image: {exc}"}, status_code=500)
+
+        neighbors = []
+        for idx, dist in zip(indices, distances):
+            if idx is None or idx < 0 or idx >= total_rows:
+                continue
+            identifier = idx
+            if id_column and id_column in dataset_df.columns:
+                identifier = dataset_df.iloc[idx][id_column]
+            neighbors.append(
+                {
+                    "id": identifier,
+                    "rowIndex": int(idx),
+                    "distance": float(dist),
+                }
+            )
+        return JSONResponse({"neighbors": neighbors})
 
     @app.get("/data/images/{column}/{filename}")
     async def get_image(column: str, filename: str):

@@ -89,6 +89,12 @@ export interface EmbeddingAtlasProps {
 
   /** Additional static assets for the viewer, such as image thumbnails. */
   assets?: EmbeddingAtlasAssets | null;
+
+  /** Optional configuration for upload-based nearest neighbor search. */
+  uploadSearch?: {
+    enabled: boolean;
+    endpoint?: string;
+  } | null;
 }
 
 export interface EmbeddingAtlasState {

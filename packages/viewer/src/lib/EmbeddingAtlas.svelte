@@ -19,6 +19,7 @@
   import Spinner from "./Spinner.svelte";
   import ActionButton from "./widgets/ActionButton.svelte";
   import Button from "./widgets/Button.svelte";
+  import ImageSearchWidget from "./widgets/ImageSearchWidget.svelte";
   import Input from "./widgets/Input.svelte";
   import PopupButton from "./widgets/PopupButton.svelte";
   import Select from "./widgets/Select.svelte";
@@ -72,6 +73,7 @@
     onStateChange,
     cache,
     assets = null,
+    uploadSearch = null,
   }: EmbeddingAtlasProps = $props();
 
   const { darkMode, userDarkMode } = makeDarkModeStore();
@@ -80,6 +82,10 @@
   Context.darkMode = darkMode;
 
   setImageAssets(assets?.images ?? null);
+
+  let uploadSearchConfig = $derived(uploadSearch);
+  let uploadSearchAvailable = $derived(uploadSearchConfig?.enabled === true);
+  let uploadSearchEndpoint = $derived(uploadSearchConfig?.endpoint ?? "/data/upload-neighbors");
 
   onMount(() => {
     if (typeof window === "undefined") {
@@ -299,6 +305,41 @@
   }
 
   const debouncedSearch = debounce(doSearch, 500);
+
+  async function displayNeighborResults(label: string, neighbors: { id: any; distance?: number }[]) {
+    searchResultVisible = true;
+    searchResultHighlight = null;
+    if (neighbors.length === 0) {
+      searchResult = { label, highlight: "", items: [] };
+      searcherStatus = "";
+      return;
+    }
+    searcherStatus = "Fetching neighbors...";
+    try {
+      let predicate = currentPredicate();
+      let result = await querySearchResultItems(
+        coordinator,
+        data.table,
+        { id: data.id, x: data.projection?.x, y: data.projection?.y, text: data.text },
+        additionalFields,
+        predicate,
+        neighbors,
+      );
+      searchResult = { label, highlight: "", items: result };
+    } catch (error) {
+      console.error("Failed to resolve neighbor results", error);
+      searchResult = { label, highlight: "", items: [] };
+    } finally {
+      searcherStatus = "";
+    }
+  }
+
+  async function handleImageSearchResult(
+    event: CustomEvent<{ neighbors: { id: any; distance?: number }[]; previewUrl: string | null }>,
+  ) {
+    let neighbors = event.detail?.neighbors ?? [];
+    await displayNeighborResults("Uploaded image neighbors", neighbors);
+  }
 
   function clearSearch() {
     searchResult = null;
@@ -779,16 +820,24 @@
           ></div>
         {/if}
         <div
-          class="flex flex-col mr-2 mb-2 dark:bg-slate-800"
+          class="flex flex-col mr-2 mb-2 gap-2 dark:bg-slate-800"
           style:width={fullWidth ? null : `${panelWidth}px`}
           class:ml-2={fullWidth}
           class:flex-none={!fullWidth}
           class:flex-1={fullWidth}
           transition:slide={{ axis: "x", duration: animationDuration }}
         >
+          {#if uploadSearchConfig}
+            <ImageSearchWidget
+              disabled={!uploadSearchAvailable}
+              endpoint={uploadSearchEndpoint}
+              on:result={handleImageSearchResult}
+            />
+          {/if}
           <div
             class="w-full rounded-md overflow-x-hidden overflow-y-scroll"
             style:width={fullWidth ? null : `${panelWidth}px`}
+            class:flex-1
           >
             <PlotList
               bind:plots={plots}
