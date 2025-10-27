@@ -56,8 +56,8 @@ def make_server(
             db_meta = {"database": {"type": "wasm", "load": True}}
         elif duckdb_uri == "server":
             # Point to the server itself.
-            # Note: load=False because the server already has the data in memory
-            db_meta = {"database": {"type": "rest"}}
+            # Note: We need to set URI explicitly for the REST connector
+            db_meta = {"database": {"type": "rest", "uri": "/data/query"}}
         else:
             # Point to the given uri.
             if duckdb_uri.startswith("http"):
