@@ -15,8 +15,8 @@ export async function initializeDatabase(
   type: "wasm" | "socket" | "rest",
   uri: string | null | undefined = undefined,
 ) {
-  const db = await createDuckDB();
   if (type == "wasm") {
+    const db = await createDuckDB();
     const conn = await wasmConnector({ duckdb: db.duckdb, connection: db.connection });
     coordinator.databaseConnector(conn);
   } else if (type == "socket") {
