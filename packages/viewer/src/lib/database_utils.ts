@@ -15,17 +15,21 @@ export async function initializeDatabase(
   type: "wasm" | "socket" | "rest",
   uri: string | null | undefined = undefined,
 ) {
-  const db = await createDuckDB();
-  if (type == "wasm") {
-    const conn = await wasmConnector({ duckdb: db.duckdb, connection: db.connection });
-    coordinator.databaseConnector(conn);
-  } else if (type == "socket") {
-    const conn = await socketConnector({ uri: uri ?? "" });
-    coordinator.databaseConnector(conn);
-  } else if (type == "rest") {
+  if (type === "rest") {
     const conn = await restConnector({ uri: uri ?? "" });
     coordinator.databaseConnector(conn);
+    return;
   }
+
+  if (type === "socket") {
+    const conn = await socketConnector({ uri: uri ?? "" });
+    coordinator.databaseConnector(conn);
+    return;
+  }
+
+  const db = await createDuckDB();
+  const conn = await wasmConnector({ duckdb: db.duckdb, connection: db.connection });
+  coordinator.databaseConnector(conn);
 }
 
 export function predicateToString(predicate: ReturnType<Selection["predicate"]>): string | null {
