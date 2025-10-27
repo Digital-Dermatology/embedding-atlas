@@ -10,36 +10,21 @@ import { createDuckDB } from "./duckdb.js";
 import { plotUniqueId, type Plot } from "./plots/plot.js";
 import { makeCountPlot, makeHistogram } from "./plots/specs.js";
 
-async function connectRest(coordinator: Coordinator, uri: string | null | undefined) {
-  const conn = await restConnector({ uri: uri ?? "" });
-  coordinator.databaseConnector(conn);
-}
-
-async function connectSocket(coordinator: Coordinator, uri: string | null | undefined) {
-  const conn = await socketConnector({ uri: uri ?? "" });
-  coordinator.databaseConnector(conn);
-}
-
-async function connectWasm(coordinator: Coordinator) {
-  const db = await createDuckDB();
-  const conn = await wasmConnector({ duckdb: db.duckdb, connection: db.connection });
-  coordinator.databaseConnector(conn);
-}
-
 export async function initializeDatabase(
   coordinator: Coordinator,
   type: "wasm" | "socket" | "rest",
   uri: string | null | undefined = undefined,
 ) {
-  switch (type) {
-    case "rest":
-      return connectRest(coordinator, uri);
-    case "socket":
-      return connectSocket(coordinator, uri);
-    case "wasm":
-      return connectWasm(coordinator);
-    default:
-      throw new Error(`Unsupported database connector type: ${type}`);
+  const db = await createDuckDB();
+  if (type == "wasm") {
+    const conn = await wasmConnector({ duckdb: db.duckdb, connection: db.connection });
+    coordinator.databaseConnector(conn);
+  } else if (type == "socket") {
+    const conn = await socketConnector({ uri: uri ?? "" });
+    coordinator.databaseConnector(conn);
+  } else if (type == "rest") {
+    const conn = await restConnector({ uri: uri ?? "" });
+    coordinator.databaseConnector(conn);
   }
 }
 
