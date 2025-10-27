@@ -56,7 +56,8 @@ def make_server(
             db_meta = {"database": {"type": "wasm", "load": True}}
         elif duckdb_uri == "server":
             # Point to the server itself.
-            db_meta = {"database": {"type": "rest", "load": True}}
+            # Note: load=False because the server already has the data in memory
+            db_meta = {"database": {"type": "rest"}}
         else:
             # Point to the given uri.
             if duckdb_uri.startswith("http"):
