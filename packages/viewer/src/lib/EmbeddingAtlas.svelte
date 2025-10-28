@@ -432,6 +432,22 @@
     }
   }
 
+  function resetToHomeView() {
+    // Reset filters
+    resetFilter();
+    // Clear search
+    searchQuery = "";
+    clearSearch();
+    // Reset viewport to default
+    embeddingView?.startViewportAnimation({
+      x: 0,
+      y: 0,
+      scale: 1,
+    });
+    // Clear any tooltips
+    embeddingView?.showTooltip(null);
+  }
+
   function makeAdditionalFields(columns: any) {
     let fields: any = {};
     fields.id = data.id;
@@ -536,9 +552,12 @@
     <div class="m-2 flex flex-row justify-between items-center">
       <div class="flex flex-row flex-1 justify-between">
         <div class="flex flex-row items-center gap-4">
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div
-            class="flex items-center gap-3 pr-4 border-r border-slate-300 dark:border-slate-700 mr-2"
+            class="flex items-center gap-3 pr-4 border-r border-slate-300 dark:border-slate-700 mr-2 cursor-pointer hover:opacity-75 transition-opacity"
             aria-label="SkinMap"
+            onclick={resetToHomeView}
           >
             <img src={skinmapLogo} alt="SkinMap logo" class="h-8 w-auto rounded-md" />
             <div class="text-lg font-semibold tracking-wide text-slate-700 dark:text-slate-200">SkinMap</div>

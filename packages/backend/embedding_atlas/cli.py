@@ -442,6 +442,7 @@ def main(
 
     upload_pipeline = None
     if upload_config is not None:
+
         logger.info("Initializing upload pipeline from %s.", upload_config)
         upload_pipeline = create_upload_pipeline(
             upload_config,
