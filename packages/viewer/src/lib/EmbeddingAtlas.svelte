@@ -854,9 +854,8 @@
             />
           {/if}
           <div
-            class="w-full rounded-md overflow-x-hidden overflow-y-scroll"
+            class="flex-1 w-full rounded-md overflow-x-hidden overflow-y-scroll"
             style:width={fullWidth ? null : `${panelWidth}px`}
-            class:flex-1
           >
             <PlotList
               bind:plots={plots}
