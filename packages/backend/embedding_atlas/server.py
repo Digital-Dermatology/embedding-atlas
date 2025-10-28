@@ -44,6 +44,12 @@ def make_server(
         lambda: to_parquet_bytes(data_source.dataset),
     )
 
+    metadata_props = data_source.metadata.get("props", {}) if isinstance(data_source.metadata, dict) else {}
+    data_meta = metadata_props.get("data", {}) if isinstance(metadata_props, dict) else {}
+    id_column = data_meta.get("id")
+    dataset_df = data_source.dataset
+    total_rows = len(dataset_df)
+
     @app.get("/data/metadata.json")
     async def get_metadata():
         if duckdb_uri is None or duckdb_uri == "wasm":
