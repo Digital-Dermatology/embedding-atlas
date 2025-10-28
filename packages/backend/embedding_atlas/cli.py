@@ -2,11 +2,9 @@
 
 """Command line interface."""
 
-import json
 import logging
 import pathlib
 import socket
-import sys
 from pathlib import Path
 
 import click
@@ -24,6 +22,7 @@ from .image_assets import (
 from .options import make_embedding_atlas_props
 from .server import make_server
 from .utils import Hasher, load_huggingface_data, load_pandas_data
+from .upload_pipeline import create_upload_pipeline
 from .version import __version__
 
 
@@ -418,40 +417,15 @@ def main(
 
     upload_pipeline = None
     if upload_config is not None:
-        upload_config_path = Path(upload_config).resolve()
-        try:
-            with open(upload_config_path, "r") as f:
-                upload_cfg = json.load(f)
-        except Exception as exc:
-            logging.error("Failed to load upload configuration %s: %s", upload_config_path, exc)
-        else:
-            skinmap_root = upload_cfg.get("skinmap_root")
-            candidate_paths = []
-            if skinmap_root:
-                candidate_paths.append(Path(skinmap_root))
-            candidate_paths.append(upload_config_path.parent.parent)
-            for candidate in candidate_paths:
-                try:
-                    resolved = candidate.resolve()
-                except Exception:
-                    continue
-                if resolved.exists() and str(resolved) not in sys.path:
-                    sys.path.append(str(resolved))
-            try:
-                from src.combined_embedder import CombinedEmbeddingPipeline
-
-                upload_pipeline = CombinedEmbeddingPipeline.from_config(
-                    upload_config_path, device=upload_device
-                )
-                metadata["uploadSearch"] = {
-                    "enabled": True,
-                    "endpoint": "upload-neighbors",
-                }
-            except Exception as exc:
-                logging.exception(
-                    "Failed to initialize upload embedding pipeline: %s", exc
-                )
-                upload_pipeline = None
+        upload_pipeline = create_upload_pipeline(
+            upload_config,
+            device=upload_device,
+        )
+        if upload_pipeline is not None:
+            metadata["uploadSearch"] = {
+                "enabled": True,
+                "endpoint": "upload-neighbors",
+            }
 
     if static is None:
         static = str((pathlib.Path(__file__).parent / "static").resolve())
