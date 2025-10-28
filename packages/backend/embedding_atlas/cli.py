@@ -25,6 +25,8 @@ from .utils import Hasher, load_huggingface_data, load_pandas_data
 from .upload_pipeline import create_upload_pipeline
 from .version import __version__
 
+logger = logging.getLogger(__name__)
+
 
 def find_column_name(existing_names, candidate):
     if candidate not in existing_names:
@@ -288,9 +290,10 @@ def main(
         format="%(levelname)s: (%(name)s) %(message)s",
     )
 
+    logger.info("Embedding Atlas %s starting.", __version__)
     df = load_datasets(inputs, splits=split, sample=sample)
 
-    print(df)
+    logger.info("Loaded %d rows with %d columns.", df.shape[0], df.shape[1])
 
     if enable_projection and (x_column is None or y_column is None):
         # No x, y column selected, first see if text/image/vectors column is specified, if not, ask for it
@@ -332,6 +335,12 @@ def main(
                     neighbors=new_neighbors_column,
                     umap_args=umap_args,
                 )
+                logger.info(
+                    "Computed vector projection using column '%s' into (%s, %s).",
+                    vector,
+                    x_column,
+                    y_column,
+                )
             elif text is not None:
                 compute_text_projection(
                     df,
@@ -343,6 +352,12 @@ def main(
                     trust_remote_code=trust_remote_code,
                     batch_size=batch_size,
                     umap_args=umap_args,
+                )
+                logger.info(
+                    "Computed text projection using column '%s' into (%s, %s).",
+                    text,
+                    x_column,
+                    y_column,
                 )
             elif image is not None:
                 compute_image_projection(
@@ -356,15 +371,25 @@ def main(
                     batch_size=batch_size,
                     umap_args=umap_args,
                 )
+                logger.info(
+                    "Computed image projection using column '%s' into (%s, %s).",
+                    image,
+                    x_column,
+                    y_column,
+                )
             else:
                 raise RuntimeError("unreachable")
 
     id_column = find_column_name(df.columns, "_row_index")
     df[id_column] = range(df.shape[0])
+    logger.info("Assigned row id column '%s'.", id_column)
 
     source_dirs = df[SOURCE_DIR_COLUMN_NAME] if SOURCE_DIR_COLUMN_NAME in df.columns else None
     image_assets, image_columns = extract_image_assets(
         df, id_column, source_dirs=source_dirs
+    )
+    logger.info(
+        "Detected %d image asset columns.", len(image_columns)
     )
     if SOURCE_DIR_COLUMN_NAME in df.columns:
         df = df.drop(columns=[SOURCE_DIR_COLUMN_NAME])
@@ -417,6 +442,7 @@ def main(
 
     upload_pipeline = None
     if upload_config is not None:
+        logger.info("Initializing upload pipeline from %s.", upload_config)
         upload_pipeline = create_upload_pipeline(
             upload_config,
             device=upload_device,
@@ -426,9 +452,15 @@ def main(
                 "enabled": True,
                 "endpoint": "upload-neighbors",
             }
+            logger.info("Upload pipeline enabled.")
+        else:
+            logger.warning("Upload pipeline could not be initialized; image upload disabled.")
 
     if static is None:
         static = str((pathlib.Path(__file__).parent / "static").resolve())
+        logger.info("Using bundled static assets at %s.", static)
+    else:
+        logger.info("Using custom static assets at %s.", static)
 
     if export_application is not None:
         with open(export_application, "wb") as f:
@@ -448,6 +480,7 @@ def main(
             logging.info(f"Port {port} is not available, using {new_port}")
     else:
         new_port = port
+    logger.info("Starting server on %s:%d (duckdb=%s).", host, new_port, duckdb)
     uvicorn.run(app, port=new_port, host=host, access_log=False)
 
 
