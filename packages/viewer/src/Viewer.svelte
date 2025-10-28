@@ -70,6 +70,8 @@ onMount(async () => {
 <div class="fixed left-0 right-0 top-0 bottom-0">
   {#if ready && config != null}
     <EmbeddingAtlas
+      searchColumns={config.searchColumns}
+      uploadSearch={config.uploadSearch}
       coordinator={coordinator}
       data={{
         ...(config.data ?? { id: "id" }),
