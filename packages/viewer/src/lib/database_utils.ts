@@ -15,8 +15,8 @@ export async function initializeDatabase(
   type: "wasm" | "socket" | "rest",
   uri: string | null | undefined = undefined,
 ) {
-  const db = await createDuckDB();
   if (type == "wasm") {
+    const db = await createDuckDB();
     const conn = await wasmConnector({ duckdb: db.duckdb, connection: db.connection });
     coordinator.databaseConnector(conn);
   } else if (type == "socket") {
@@ -98,13 +98,32 @@ export class TableInfo {
 
   async columnDescriptions(): Promise<ColumnDesc[]> {
     let columns = await this.describe();
+
+    // Batch all COUNT DISTINCT queries into a single query to avoid N+1 problem
+    if (columns.length === 0) {
+      return [];
+    }
+
+    let distinctCountSelects = columns.map(col =>
+      SQL.sql`COUNT(DISTINCT ${SQL.column(col.column_name)}) AS ${SQL.column(`count_${col.column_name}`)}`
+    );
+    let distinctCountQuery = SQL.Query.from(this.table).select(
+      Object.fromEntries(
+        columns.map((col, idx) => [
+          `count_${col.column_name}`,
+          distinctCountSelects[idx]
+        ])
+      )
+    );
+    let distinctCounts = await this.queryOne(distinctCountQuery);
+
     let result: ColumnDesc[] = [];
     for (let column of columns) {
       result.push({
         name: column.column_name,
         type: column.column_type,
         jsType: jsTypeFromDBType(column.column_type),
-        distinctCount: await this.distinctCount(column.column_name),
+        distinctCount: distinctCounts[`count_${column.column_name}`] ?? 0,
       });
     }
     return result;
