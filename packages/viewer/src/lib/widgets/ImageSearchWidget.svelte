@@ -483,7 +483,7 @@ let refetchInProgress = false;
   }
 </script>
 
-<div class="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm flex flex-col gap-3 p-3">
+<div class="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm flex flex-col gap-3 p-3 max-h-[32rem] overflow-y-auto">
   <div class="flex flex-col gap-1">
     <span class="text-base font-semibold text-slate-700 dark:text-slate-200">Image Neighbor Search</span>
     <span class="text-slate-500 dark:text-slate-400">Upload an image to find visually similar samples in SkinMap.</span>
@@ -507,7 +507,7 @@ let refetchInProgress = false;
     </div>
   {/if}
 
-  <div class="flex flex-col gap-2 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-3">
+  <div class="flex flex-col gap-2">
     <div class="flex items-center gap-2">
       <span class="font-medium text-slate-600 dark:text-slate-300">Filters</span>
       <Button label="Add filter" onClick={addFilter} disabled={disabled} />
