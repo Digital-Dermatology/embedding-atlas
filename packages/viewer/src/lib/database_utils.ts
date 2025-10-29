@@ -104,14 +104,11 @@ export class TableInfo {
       return [];
     }
 
-    let distinctCountSelects = columns.map(col =>
-      SQL.sql`COUNT(DISTINCT ${SQL.column(col.column_name)}) AS ${SQL.column(`count_${col.column_name}`)}`
-    );
     let distinctCountQuery = SQL.Query.from(this.table).select(
       Object.fromEntries(
-        columns.map((col, idx) => [
+        columns.map((col) => [
           `count_${col.column_name}`,
-          distinctCountSelects[idx]
+          SQL.sql`COUNT(DISTINCT ${SQL.column(col.column_name)})`
         ])
       )
     );
