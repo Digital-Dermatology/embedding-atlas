@@ -465,32 +465,34 @@ async function displayNeighborResults(label: string, neighbors: { id: any; dista
   if (neighbors.length === 0) {
     searchResult = { label, highlight: "", items: [] };
     searcherStatus = "";
-      return;
-    }
-    searcherStatus = "Fetching neighbors...";
-    try {
-      let predicate = currentPredicate();
-      let result = await querySearchResultItems(
-        coordinator,
-        data.table,
-        { id: data.id, x: data.projection?.x, y: data.projection?.y, text: data.text },
-        additionalFields,
-        predicate,
-        neighbors,
-      );
-      searchResult = { label, highlight: "", items: result };
-    } catch (error) {
-      console.error("Failed to resolve neighbor results", error);
-      searchResult = { label, highlight: "", items: [] };
-    } finally {
-      searcherStatus = "";
+    return;
+  }
+
+  searcherStatus = "Fetching neighbors...";
+  try {
+    let predicate = currentPredicate();
+    let result = await querySearchResultItems(
+      coordinator,
+      data.table,
+      { id: data.id, x: data.projection?.x, y: data.projection?.y, text: data.text },
+      additionalFields,
+      predicate,
+      neighbors,
+    );
+    searchResult = { label, highlight: "", items: result };
+  } catch (error) {
+    console.error("Failed to resolve neighbor results", error);
+    searchResult = { label, highlight: "", items: [] };
+  } finally {
+    searcherStatus = "";
   }
 }
 
 async function handleImageSearchResult(detail: UploadSearchResultDetail) {
-  let neighbors = detail?.neighbors ?? [];
-  const filters = detail?.filters ?? [];
-  const setStatus = detail?.setStatus;
+  const payload = (detail as any)?.detail ? ((detail as any).detail as UploadSearchResultDetail) : detail;
+  let neighbors = payload?.neighbors ?? [];
+  const filters = payload?.filters ?? [];
+  const setStatus = payload?.setStatus;
 
   let filteredNeighbors = neighbors;
   try {
