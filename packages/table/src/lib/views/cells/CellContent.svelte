@@ -32,9 +32,33 @@
 
   let clamped = $derived(contentHeight > height);
 
-  const content: string | null = model.getContent({ row, col });
-  const type: JSType = schema.dataType[col] ?? "string";
+  const content: any = model.getContent({ row, col });
+  const rawType: any = schema.dataType[col] ?? "string";
   const sqlType: string = schema.sqlType[col] ?? "TEXT";
+
+  function formatList(value: any): string | null {
+    if (value == null) {
+      return null;
+    }
+    const values = Array.isArray(value) ? value : [value];
+    const cleaned = values
+      .map((item) => (item == null ? "" : String(item).trim()))
+      .filter((item) => item.length > 0);
+    return cleaned.length > 0 ? cleaned.join(", ") : null;
+  }
+
+  const isListSqlType = /\[\]$/.test(sqlType) || /^LIST/i.test(sqlType);
+  const isArrayContent = Array.isArray(content);
+  const isListContent = isArrayContent || rawType === "string[]" || isListSqlType;
+  const displayType: JSType = (isListContent ? "string" : rawType) as JSType;
+  const stringContent: string | null =
+    displayType === "string"
+      ? isListContent
+        ? formatList(content)
+        : content != null
+          ? String(content)
+          : null
+      : null;
 
   function isLink(value: any): boolean {
     return typeof value == "string" && (value.startsWith("http://") || value.startsWith("https://"));
@@ -63,13 +87,13 @@
 >
   {#if customCellsConfig[col]}
     <CustomCellContents row={row} col={col} customCell={customCellsConfig[col]} bind:height={contentHeight} />
-  {:else if type === "string"}
-    {#if content && isLink(content)}
-      <LinkContent url={content} bind:height={contentHeight} />
+  {:else if displayType === "string"}
+    {#if stringContent && isLink(stringContent)}
+      <LinkContent url={stringContent} bind:height={contentHeight} />
     {:else}
-      <TextContent text={content} bind:height={contentHeight} clamped={clamped} parentHeight={height} />
+      <TextContent text={stringContent} bind:height={contentHeight} clamped={clamped} parentHeight={height} />
     {/if}
-  {:else if type === "number"}
+  {:else if displayType === "number"}
     {#if sqlType === "BIGINT"}
       <BigIntContent bigint={BigInt((content as string) ?? "")} bind:height={contentHeight} />
     {:else}
@@ -78,7 +102,12 @@
   {:else if isImage(content)}
     <ImageContent image={content} bind:height={contentHeight} />
   {:else}
-    <TextContent text={content} bind:height={contentHeight} clamped={clamped} parentHeight={height} />
+    <TextContent
+      text={stringContent ?? (content != null ? String(content) : null)}
+      bind:height={contentHeight}
+      clamped={clamped}
+      parentHeight={height}
+    />
   {/if}
 
   {#if clamped}

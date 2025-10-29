@@ -19,7 +19,7 @@
   let status: string = "";
   let errorMessage: string | null = null;
   let uploading = false;
-  let topK = 16;
+  let topK = 50;
 
   function resetPreview() {
     if (previewUrl != null) {
@@ -66,7 +66,7 @@
       }
       const payload = await resp.json();
       const neighbors: Neighbor[] = Array.isArray(payload?.neighbors) ? payload.neighbors : [];
-      status = neighbors.length > 0 ? `Found ${neighbors.length} neighbor${neighbors.length === 1 ? "" : "s"}.` : "No neighbors found.";
+      status = neighbors.length === 0 ? "No neighbors found." : "";
       dispatch("result", { neighbors, previewUrl });
     } catch (err: any) {
       console.error("Upload search failed", err);

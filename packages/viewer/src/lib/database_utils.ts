@@ -368,11 +368,22 @@ export class TableInfo {
 export type JSColumnType = "string" | "number" | "string[]";
 
 export function jsTypeFromDBType(dbType: string): JSColumnType | null {
-  if (numberTypes.has(dbType)) {
+  const normalized = dbType.trim().toUpperCase();
+  if (numberTypes.has(normalized)) {
     return "number";
-  } else if (stringTypes.has(dbType)) {
+  } else if (stringTypes.has(normalized)) {
     return "string";
-  } else if (dbType.match(/^(VARCHAR|TEXT)\[\d*\]$/)) {
+  } else if (/^(VARCHAR|TEXT)\[\d*\]$/.test(normalized)) {
+    return "string[]";
+  } else if (normalized.endsWith("[]")) {
+    const inner = normalized.slice(0, -2);
+    const innerType = jsTypeFromDBType(inner);
+    return innerType === "string" ? "string[]" : null;
+  } else if (normalized.startsWith("LIST(") && normalized.endsWith(")")) {
+    const inner = normalized.slice(5, -1);
+    const innerType = jsTypeFromDBType(inner);
+    return innerType === "string" ? "string[]" : null;
+  } else if (normalized === "LIST") {
     return "string[]";
   } else {
     return null;

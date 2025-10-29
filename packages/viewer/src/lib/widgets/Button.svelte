@@ -8,6 +8,7 @@
     style?: string;
     class?: string | null;
     onClick?: () => void;
+    disabled?: boolean;
   }
 
   let {
@@ -18,6 +19,7 @@
     style = "default",
     onClick,
     class: additionalClasses,
+    disabled = false,
   }: Props = $props();
 
   const styles: Record<string, string> = {
@@ -34,8 +36,12 @@
     ''}"
   style:order={order}
   title={title}
+  disabled={disabled}
+  aria-disabled={disabled}
   onclick={() => {
-    onClick?.();
+    if (!disabled) {
+      onClick?.();
+    }
   }}
 >
   {#if icon != null}
