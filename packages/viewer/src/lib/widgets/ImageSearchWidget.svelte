@@ -66,7 +66,19 @@
       }
       const payload = await resp.json();
       const neighbors: Neighbor[] = Array.isArray(payload?.neighbors) ? payload.neighbors : [];
-      status = neighbors.length === 0 ? "No neighbors found." : "";
+      if (neighbors.length === 0) {
+        status = "No neighbors found.";
+      } else {
+        const distances = neighbors
+          .map((neighbor) => neighbor?.distance)
+          .filter((value): value is number => typeof value === "number" && !Number.isNaN(value));
+        if (distances.length > 0) {
+          const avgDistance = distances.reduce((acc, value) => acc + value, 0) / distances.length;
+          status = `Average distance: ${avgDistance.toFixed(4)}`;
+        } else {
+          status = "";
+        }
+      }
       dispatch("result", { neighbors, previewUrl });
     } catch (err: any) {
       console.error("Upload search failed", err);
