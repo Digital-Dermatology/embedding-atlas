@@ -63,6 +63,7 @@ interface UploadSearchResultDetail {
   previewUrl: string | null;
   filters: UploadSearchFilter[];
   setStatus?: (value: string) => void;
+  refetch?: (options?: { maxK?: number }) => Promise<boolean>;
 }
 
   let densityCategoryLimit: number = $state(Math.min(20, maxDensityModeCategories()));
@@ -493,6 +494,7 @@ async function handleImageSearchResult(detail: UploadSearchResultDetail) {
   let neighbors = payload?.neighbors ?? [];
   const filters = payload?.filters ?? [];
   const setStatus = payload?.setStatus;
+  const refetch = payload?.refetch;
 
   let filteredNeighbors = neighbors;
   try {
@@ -500,6 +502,14 @@ async function handleImageSearchResult(detail: UploadSearchResultDetail) {
   } catch (error) {
     console.error("Failed to apply upload search filters", error);
     filteredNeighbors = neighbors;
+  }
+
+  const hasActiveFilters = filters.some(isFilterActive);
+  if (hasActiveFilters && filteredNeighbors.length === 0 && typeof refetch === "function") {
+    const triggered = await refetch();
+    if (triggered) {
+      return;
+    }
   }
 
   updateUploadSearchStatus(setStatus, filteredNeighbors, filters);

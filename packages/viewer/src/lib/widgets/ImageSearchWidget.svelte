@@ -35,6 +35,7 @@ interface $$Events {
     previewUrl: string | null;
     filters: SerializedFilter[];
     setStatus: (value: string) => void;
+    refetch: (options?: { maxK?: number }) => Promise<boolean>;
   };
 }
 
@@ -66,6 +67,8 @@ const {
   columns = [] as ColumnDesc[],
 } = $props();
 
+const MAX_AUTO_REFETCH_K = 1000;
+
 let file: File | null = $state(null);
 let previewUrl: string | null = $state(null);
 let status: string = $state("");
@@ -74,9 +77,11 @@ let uploading: boolean = $state(false);
 let topK: number = $state(50);
 
 let filters: FilterRow[] = $state.raw([]);
-  let lastNeighbors: Neighbor[] | null = null;
-  let lastPreviewUrl: string | null = null;
-  let filterChangeTimer: any = null;
+let filterChangeTimer: any = null;
+let hasExecutedSearch = false;
+let currentNeighbors: Neighbor[] = [];
+let lastRequestK: number | null = null;
+let refetchInProgress = false;
 
   let filterableColumns = $derived(
     columns.filter((col: ColumnDesc) => col.jsType === "string" || col.jsType === "string[]" || col.jsType === "number"),
@@ -361,28 +366,84 @@ let filters: FilterRow[] = $state.raw([]);
             max: max ?? null,
           });
         }
-      }
+  }
     }
     return activeFilters;
   }
 
-  function emitResult(neighbors: Neighbor[], preview: string | null) {
-    lastNeighbors = neighbors;
-    lastPreviewUrl = preview;
+  async function requestNeighbors(kValue: number): Promise<Neighbor[]> {
+    if (!file) {
+      throw new Error("No image selected.");
+    }
+    const formData = new FormData();
+    formData.append("file", file);
+    const resp = await fetch(`${endpoint}?k=${encodeURIComponent(kValue)}`, {
+      method: "POST",
+      body: formData,
+    });
+    if (!resp.ok) {
+      const message = resp.status === 404 ? "Upload search is not available on this server." : `Server error (${resp.status})`;
+      throw new Error(message);
+    }
+    const payload = await resp.json();
+    const neighbors: Neighbor[] = Array.isArray(payload?.neighbors) ? payload.neighbors : [];
+    return neighbors;
+  }
+
+  async function performAutoRefetch(options?: { maxK?: number }): Promise<boolean> {
+    const { maxK = MAX_AUTO_REFETCH_K } = options ?? {};
+    if (!file || uploading || refetchInProgress) {
+      return false;
+    }
+    const currentK = lastRequestK ?? topK;
+    if (currentK >= maxK) {
+      return false;
+    }
+    const nextK = Math.min(maxK, Math.max(currentK, topK) * 2);
+    if (nextK <= currentK) {
+      return false;
+    }
+    refetchInProgress = true;
+    uploading = true;
+    errorMessage = null;
+    status = "Searching...";
+    try {
+      const neighbors = await requestNeighbors(nextK);
+      lastRequestK = nextK;
+      emitResult(neighbors, previewUrl, { skipStatusReset: false });
+      return true;
+    } catch (err: any) {
+      console.error("Upload search failed", err);
+      errorMessage = err?.message ?? "Failed to query nearest neighbors.";
+      status = "";
+      return false;
+    } finally {
+      uploading = false;
+      refetchInProgress = false;
+    }
+  }
+
+  function emitResult(neighbors: Neighbor[], preview: string | null, options?: { skipStatusReset?: boolean }) {
+    currentNeighbors = neighbors;
+    hasExecutedSearch = true;
     const serializedFilters = serializeFilters();
-    status = serializedFilters.length > 0 ? "Filtering..." : "";
-    dispatch("result", {
+    if (!options?.skipStatusReset) {
+      status = serializedFilters.length > 0 ? "Filtering..." : "";
+    }
+    const detail: $$Events["result"] = {
       neighbors,
       previewUrl: preview,
       filters: serializedFilters,
       setStatus: (value: string) => {
         status = value;
       },
-    });
+      refetch: performAutoRefetch,
+    };
+    dispatch("result", detail);
   }
 
   function scheduleFiltersChanged() {
-    if (!lastNeighbors) {
+    if (!hasExecutedSearch) {
       return;
     }
     if (filterChangeTimer) {
@@ -390,7 +451,7 @@ let filters: FilterRow[] = $state.raw([]);
     }
     filterChangeTimer = setTimeout(() => {
       filterChangeTimer = null;
-      emitResult(lastNeighbors ?? [], lastPreviewUrl ?? previewUrl);
+      emitResult(currentNeighbors, previewUrl);
     }, 150);
   }
 
@@ -402,19 +463,9 @@ let filters: FilterRow[] = $state.raw([]);
     status = "Embedding image...";
     uploading = true;
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const resp = await fetch(`${endpoint}?k=${encodeURIComponent(topK)}`, {
-        method: "POST",
-        body: formData,
-      });
-      if (!resp.ok) {
-        const message = resp.status === 404 ? "Upload search is not available on this server." : `Server error (${resp.status})`;
-        throw new Error(message);
-      }
-      const payload = await resp.json();
-      const neighbors: Neighbor[] = Array.isArray(payload?.neighbors) ? payload.neighbors : [];
-      emitResult(neighbors, previewUrl);
+      const neighbors = await requestNeighbors(topK);
+      lastRequestK = topK;
+      emitResult(neighbors, previewUrl, { skipStatusReset: false });
     } catch (err: any) {
       console.error("Upload search failed", err);
       errorMessage = err?.message ?? "Failed to query nearest neighbors.";
