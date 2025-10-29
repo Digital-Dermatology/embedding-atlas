@@ -49,6 +49,26 @@ def make_server(
     id_column = data_meta.get("id")
     dataset_df = data_source.dataset
     total_rows = len(dataset_df)
+    json_scalar_types = (str, int, float, bool)
+
+    def _json_scalar(value):
+        if isinstance(value, json_scalar_types) or value is None:
+            return value
+        if hasattr(value, "item"):
+            try:
+                converted = value.item()
+                if isinstance(converted, json_scalar_types) or converted is None:
+                    return converted
+            except Exception:
+                pass
+        if hasattr(value, "tolist"):
+            try:
+                converted = value.tolist()
+                if isinstance(converted, json_scalar_types) or converted is None:
+                    return converted
+            except Exception:
+                pass
+        return str(value)
 
     @app.get("/data/metadata.json")
     async def get_metadata():
@@ -112,8 +132,8 @@ def make_server(
                 identifier = dataset_df.iloc[idx][id_column]
             neighbors.append(
                 {
-                    "id": identifier,
-                    "rowIndex": int(idx),
+                    "id": _json_scalar(identifier),
+                    "rowIndex": int(_json_scalar(idx)),
                     "distance": float(dist),
                 }
             )
