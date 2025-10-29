@@ -36,17 +36,40 @@ interface Metadata {
 
 export class BackendDataSource implements DataSource {
   private serverUrl: string;
+  private serverUrlCandidates: string[];
   downloadArchive: (() => Promise<void>) | undefined = undefined;
   downloadSelection: ((predicate: string | null, format: ExportFormat) => Promise<void>) | undefined = undefined;
 
   constructor(serverUrl: string) {
+    const candidates: string[] = [];
     if (serverUrl.startsWith("http")) {
       this.serverUrl = serverUrl;
+      candidates.push(serverUrl);
     } else {
       let pageUrl = window.location.origin + window.location.pathname;
       pageUrl = pageUrl.replace(/\/[^/]*$/, "/");
-      this.serverUrl = joinUrl(pageUrl, serverUrl);
+      const primary = joinUrl(pageUrl, serverUrl);
+      candidates.push(primary);
+      try {
+        const normalized = serverUrl.startsWith(".") ? serverUrl.slice(1) : serverUrl;
+        const absolute = new URL(normalized, window.location.origin).toString();
+        const ensured = absolute.endsWith("/") || !serverUrl.endsWith("/") ? absolute : absolute + "/";
+        if (!candidates.includes(ensured)) {
+          candidates.push(ensured);
+        }
+      } catch {
+        // ignore fallback errors; we'll stick with the relative resolution
+      }
+      this.serverUrl = candidates[0];
     }
+    const seen = new Set<string>();
+    this.serverUrlCandidates = candidates.filter((url) => {
+      if (seen.has(url)) {
+        return false;
+      }
+      seen.add(url);
+      return true;
+    });
   }
 
   async initializeCoordinator(
@@ -111,17 +134,28 @@ export class BackendDataSource implements DataSource {
   private async fetchEndpoint(endpoint: string, init?: RequestInit) {
     let resp = await fetch(joinUrl(this.serverUrl, endpoint), init);
     if (resp.status != 200) {
-      throw new Error("ERROR FETCH");
+      const error: any = new Error(`Request failed (${resp.status})`);
+      error.status = resp.status;
+      throw error;
     }
     return resp;
   }
 
   private async metadata(): Promise<Metadata> {
-    try {
-      return await this.fetchEndpoint("metadata.json").then((x) => x.json());
-    } catch (e) {
-      throw new Error("Network Error: Failed to fetch dataset metadata");
+    let lastError: unknown = null;
+    for (let i = 0; i < this.serverUrlCandidates.length; i++) {
+      this.serverUrl = this.serverUrlCandidates[i];
+      try {
+        const result = await this.fetchEndpoint("metadata.json").then((x) => x.json());
+        if (i !== 0) {
+          this.serverUrlCandidates.splice(0, this.serverUrlCandidates.length, this.serverUrl);
+        }
+        return result;
+      } catch (err) {
+        lastError = err;
+      }
     }
+    throw new Error("Network Error: Failed to fetch dataset metadata");
   }
 
   async cacheGet(key: string) {
