@@ -483,7 +483,7 @@ let refetchInProgress = false;
   }
 </script>
 
-<div class="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm flex flex-col gap-3 p-3 max-h-[32rem] overflow-y-auto">
+<div class="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm flex flex-col gap-3 p-3 max-h-[50vh] overflow-y-auto">
   <div class="flex flex-col gap-1">
     <span class="text-base font-semibold text-slate-700 dark:text-slate-200">Image Neighbor Search</span>
     <span class="text-slate-500 dark:text-slate-400">Upload an image to find visually similar samples in SkinMap.</span>

@@ -245,12 +245,13 @@ interface UploadSearchResultDetail {
   let searchQuery = $state("");
   let searcherStatus = $state("");
   let searchResultVisible = $state(false);
-  let searchResult: {
-    label: string;
-    highlight: string;
-    items: SearchResultItem[];
-  } | null = $state(null);
-  let searchResultHighlight = $state<SearchResultItem | null>(null);
+let searchResult: {
+  label: string;
+  highlight: string;
+  items: SearchResultItem[];
+} | null = $state(null);
+let searchResultHighlight = $state<SearchResultItem | null>(null);
+let uploadFocusPoint: { x: number; y: number } | null = $state(null);
 
   async function doSearch(query: any, mode: string) {
     if (searcher == null || searchModeOptions.length == 0) {
@@ -314,6 +315,7 @@ interface UploadSearchResultDetail {
 
     searcherStatus = "";
     searchResult = { label: label, highlight: highlight, items: result };
+    uploadFocusPoint = null;
   }
 
 const debouncedSearch = debounce(doSearch, 500);
@@ -376,6 +378,37 @@ function matchesFilterValue(value: any, filter: UploadSearchFilter): boolean {
     return false;
   }
   return candidates.some((candidate) => filter.values.includes(candidate));
+}
+
+function computeUploadFocusPoint(items: SearchResultItem[]): { x: number; y: number } | null {
+  const valid = items.filter(
+    (item) =>
+      typeof item.x === "number" && Number.isFinite(item.x) && typeof item.y === "number" && Number.isFinite(item.y),
+  );
+  if (valid.length === 0) {
+    return null;
+  }
+  const EPS = 1e-6;
+  let sumW = 0;
+  let sumX = 0;
+  let sumY = 0;
+  for (const item of valid) {
+    const distance = item.distance;
+    const weight = distance != null && Number.isFinite(distance) ? 1 / Math.max(distance, EPS) : 1;
+    sumW += weight;
+    sumX += weight * (item.x as number);
+    sumY += weight * (item.y as number);
+  }
+  if (sumW <= EPS) {
+    return {
+      x: valid.reduce((acc, item) => acc + (item.x as number), 0) / valid.length,
+      y: valid.reduce((acc, item) => acc + (item.y as number), 0) / valid.length,
+    };
+  }
+  return {
+    x: sumX / sumW,
+    y: sumY / sumW,
+  };
 }
 
 async function filterNeighborsByMetadata(
@@ -460,13 +493,16 @@ function updateUploadSearchStatus(
   setStatus(`Average distance: ${avg.toFixed(4)}`);
 }
 
-async function displayNeighborResults(label: string, neighbors: { id: any; distance?: number }[]) {
+async function displayNeighborResults(
+  label: string,
+  neighbors: { id: any; distance?: number }[],
+): Promise<SearchResultItem[]> {
   searchResultVisible = true;
   searchResultHighlight = null;
   if (neighbors.length === 0) {
     searchResult = { label, highlight: "", items: [] };
     searcherStatus = "";
-    return;
+    return [];
   }
 
   searcherStatus = "Fetching neighbors...";
@@ -481,9 +517,11 @@ async function displayNeighborResults(label: string, neighbors: { id: any; dista
       neighbors,
     );
     searchResult = { label, highlight: "", items: result };
+    return result;
   } catch (error) {
     console.error("Failed to resolve neighbor results", error);
     searchResult = { label, highlight: "", items: [] };
+    return [];
   } finally {
     searcherStatus = "";
   }
@@ -506,6 +544,7 @@ async function handleImageSearchResult(detail: UploadSearchResultDetail) {
 
   const hasActiveFilters = filters.some(isFilterActive);
   if (hasActiveFilters && filteredNeighbors.length === 0 && typeof refetch === "function") {
+    uploadFocusPoint = null;
     const triggered = await refetch();
     if (triggered) {
       return;
@@ -513,13 +552,15 @@ async function handleImageSearchResult(detail: UploadSearchResultDetail) {
   }
 
   updateUploadSearchStatus(setStatus, filteredNeighbors, filters);
-  await displayNeighborResults("Uploaded image neighbors", filteredNeighbors);
+  const items = await displayNeighborResults("Uploaded image neighbors", filteredNeighbors);
+  uploadFocusPoint = computeUploadFocusPoint(items);
 }
 
-  function clearSearch() {
-    searchResult = null;
-    searchResultVisible = false;
-  }
+function clearSearch() {
+  searchResult = null;
+  searchResultVisible = false;
+  uploadFocusPoint = null;
+}
 
   $effect.pre(() => {
     if (searchQuery == "") {
@@ -951,7 +992,14 @@ async function handleImageSearchResult(detail: UploadSearchResultDetail) {
                   },
                 }}
                 customOverlay={searchResult
-                  ? { class: CustomOverlay, props: { items: searchResult.items, highlightItem: searchResultHighlight } }
+                  ? {
+                      class: CustomOverlay,
+                      props: {
+                        items: searchResult.items,
+                        highlightItem: searchResultHighlight,
+                        focusPoint: uploadFocusPoint,
+                      },
+                    }
                   : null}
                 onClickPoint={(p) => scrollTableTo(p.identifier)}
                 stateStore={plotStateStores.store("embedding-view")}

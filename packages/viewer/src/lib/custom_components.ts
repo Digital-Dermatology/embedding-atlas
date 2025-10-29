@@ -35,6 +35,9 @@ export const CustomTooltip = createCustomComponentClass<{
   onNearestNeighborSearch?: (id: any) => void;
 }>(Tooltip);
 
-export const CustomOverlay = createCustomComponentClass<{ proxy: OverlayProxy; items: SearchResultItem[] }>(
-  SearchResultOverlay,
-);
+export const CustomOverlay = createCustomComponentClass<{
+  proxy: OverlayProxy;
+  items: SearchResultItem[];
+  highlightItem?: SearchResultItem | null;
+  focusPoint?: { x: number; y: number } | null;
+}>(SearchResultOverlay);

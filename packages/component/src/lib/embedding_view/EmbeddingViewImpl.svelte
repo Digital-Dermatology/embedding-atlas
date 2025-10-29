@@ -645,6 +645,20 @@
     return collectedClusters.filter((x) => x.sumDensity / maxDensity > densityThreshold);
   }
 
+  function clusterHasPoints(rects: Rectangle[], data: { x: Float32Array<ArrayBuffer>; y: Float32Array<ArrayBuffer> }): boolean {
+    // Check if any point from the filtered data falls within the cluster region
+    for (let i = 0; i < data.x.length; i++) {
+      let px = data.x[i];
+      let py = data.y[i];
+      for (let rect of rects) {
+        if (px >= rect.xMin && px <= rect.xMax && py >= rect.yMin && py <= rect.yMax) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   async function generateLabels(viewport: ViewportState): Promise<Label[]> {
     if (renderer == null || queryClusterLabels == null) {
       return [];
@@ -652,32 +666,42 @@
 
     let cacheKey = await cacheKeyForObject({
       autoLabel: {
-        version: 1,
+        version: 2, // Increment version since we're changing cache structure
         viewport,
         stopWords: config?.autoLabelStopWords,
         densityThreshold: config?.autoLabelDensityThreshold,
       },
     });
 
+    let newClusters: Cluster[] | null = null;
+
     if (cache != null) {
       let cached = await cache.get(cacheKey);
       if (cached != null) {
-        return cached;
+        newClusters = cached;
       }
     }
 
-    let newClusters = await generateClusters(renderer, 10, viewport, config?.autoLabelDensityThreshold ?? 0.005);
-    newClusters = newClusters.concat(await generateClusters(renderer, 5, viewport));
+    if (newClusters == null) {
+      newClusters = await generateClusters(renderer, 10, viewport, config?.autoLabelDensityThreshold ?? 0.005);
+      newClusters = newClusters.concat(await generateClusters(renderer, 5, viewport));
 
-    if (queryClusterLabels) {
-      let labels = await queryClusterLabels(newClusters.map((x) => x.rects));
-      for (let i = 0; i < newClusters.length; i++) {
-        newClusters[i].label = labels[i];
+      if (queryClusterLabels) {
+        let labels = await queryClusterLabels(newClusters.map((x) => x.rects));
+        for (let i = 0; i < newClusters.length; i++) {
+          newClusters[i].label = labels[i];
+        }
+      }
+
+      if (cache != null) {
+        await cache.set(cacheKey, newClusters);
       }
     }
 
+    // Filter clusters that have points in the filtered data, then convert to labels
     let result: Label[] = newClusters
       .filter((x) => x.label != null && x.label.length > 0)
+      .filter((x) => clusterHasPoints(x.rects, data))
       .map((x) => ({
         x: x.x,
         y: x.y,
@@ -685,10 +709,6 @@
         priority: x.sumDensity,
         level: x.bandwidth == 10 ? 0 : 1,
       }));
-
-    if (cache != null) {
-      await cache.set(cacheKey, result);
-    }
 
     return result;
   }
