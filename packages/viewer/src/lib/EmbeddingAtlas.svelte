@@ -52,7 +52,18 @@
   import { debounce, startDrag } from "./utils.js";
   import skinmapLogo from "../assets/atlas.png";
 
-  const searchLimit = 500;
+const searchLimit = 500;
+
+type UploadSearchFilter =
+  | { column: string; type: "string" | "string[]"; values: string[] }
+  | { column: string; type: "number"; min: number | null; max: number | null };
+
+interface UploadSearchResultDetail {
+  neighbors: { id: any; distance?: number }[];
+  previewUrl: string | null;
+  filters: UploadSearchFilter[];
+  setStatus?: (value: string) => void;
+}
 
   let densityCategoryLimit: number = $state(Math.min(20, maxDensityModeCategories()));
 
@@ -304,14 +315,156 @@
     searchResult = { label: label, highlight: highlight, items: result };
   }
 
-  const debouncedSearch = debounce(doSearch, 500);
+const debouncedSearch = debounce(doSearch, 500);
 
-  async function displayNeighborResults(label: string, neighbors: { id: any; distance?: number }[]) {
-    searchResultVisible = true;
-    searchResultHighlight = null;
-    if (neighbors.length === 0) {
-      searchResult = { label, highlight: "", items: [] };
-      searcherStatus = "";
+function isFilterActive(filter: UploadSearchFilter): boolean {
+  if (filter.type === "number") {
+    return filter.min != null || filter.max != null;
+  }
+  return Array.isArray(filter.values) && filter.values.length > 0;
+}
+
+function normalizeToStringArray(value: any): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (item == null ? null : String(item)))
+      .filter((item): item is string => item != null && item !== "");
+  }
+  if (value == null) {
+    return [];
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((item: any) => (item == null ? null : String(item)))
+          .filter((item): item is string => item != null && item !== "");
+      }
+    } catch {
+      // Fall through: treat as single value.
+    }
+    return value === "" ? [] : [value];
+  }
+  return [String(value)];
+}
+
+function matchesFilterValue(value: any, filter: UploadSearchFilter): boolean {
+  if (filter.type === "number") {
+    if (value == null || value === "") {
+      return false;
+    }
+    const numeric = typeof value === "number" ? value : Number(value);
+    if (!Number.isFinite(numeric)) {
+      return false;
+    }
+    if (filter.min != null && numeric < filter.min) {
+      return false;
+    }
+    if (filter.max != null && numeric > filter.max) {
+      return false;
+    }
+    return true;
+  }
+
+  if (!Array.isArray(filter.values) || filter.values.length === 0) {
+    return true;
+  }
+  const candidates = normalizeToStringArray(value);
+  if (candidates.length === 0) {
+    return false;
+  }
+  return candidates.some((candidate) => filter.values.includes(candidate));
+}
+
+async function filterNeighborsByMetadata(
+  neighbors: { id: any; distance?: number }[],
+  filters: UploadSearchFilter[],
+): Promise<{ id: any; distance?: number }[]> {
+  const activeFilters = filters.filter(isFilterActive);
+  if (activeFilters.length === 0) {
+    return neighbors;
+  }
+  if (!data?.id || !data?.table) {
+    return neighbors;
+  }
+
+  const ids = Array.from(new Set(neighbors.map((neighbor) => neighbor.id).filter((id) => id != null)));
+  if (ids.length === 0) {
+    return [];
+  }
+
+  const selectSpec: Record<string, any> = {
+    __neighbor_id__: SQL.column(data.id, data.table),
+  };
+
+  for (const filter of activeFilters) {
+    const alias = `field_${filter.column}`;
+    if (selectSpec[alias]) {
+      continue;
+    }
+    if (filter.type === "string[]") {
+      selectSpec[alias] = SQL.sql`CASE WHEN ${SQL.column(filter.column, data.table)} IS NULL THEN NULL ELSE list_transform(${SQL.column(filter.column, data.table)}, x -> CAST(x AS TEXT)) END`;
+    } else {
+      selectSpec[alias] = SQL.column(filter.column, data.table);
+    }
+  }
+
+  const query = SQL.Query.from(data.table)
+    .select(selectSpec)
+    .where(
+      SQL.isIn(
+        SQL.column(data.id, data.table),
+        ids.map((id) => SQL.literal(id)),
+      ),
+    );
+
+  const result = await coordinator.query(query);
+  const rows = Array.from(result) as Record<string, any>[];
+  const valueById = new Map<any, Record<string, any>>();
+  for (const row of rows) {
+    valueById.set(row.__neighbor_id__, row);
+  }
+
+  return neighbors.filter((neighbor) => {
+    const row = valueById.get(neighbor.id);
+    if (!row) {
+      return false;
+    }
+    return activeFilters.every((filter) => matchesFilterValue(row[`field_${filter.column}`], filter));
+  });
+}
+
+function updateUploadSearchStatus(
+  setStatus: ((value: string) => void) | undefined,
+  neighbors: { id: any; distance?: number }[],
+  filters: UploadSearchFilter[],
+) {
+  if (!setStatus) {
+    return;
+  }
+  const hasFilters = filters.some(isFilterActive);
+  if (neighbors.length === 0) {
+    setStatus(hasFilters ? "No neighbors match the filters." : "No neighbors found.");
+    return;
+  }
+  const distances = neighbors
+    .map((neighbor) => neighbor.distance)
+    .filter((distance): distance is number => typeof distance === "number" && Number.isFinite(distance));
+  if (distances.length === 0) {
+    setStatus("");
+    return;
+  }
+  const avg = distances.reduce((acc, value) => acc + value, 0) / distances.length;
+  setStatus(`Average distance: ${avg.toFixed(4)}`);
+}
+
+async function displayNeighborResults(label: string, neighbors: { id: any; distance?: number }[]) {
+  searchResultVisible = true;
+  searchResultHighlight = null;
+  if (neighbors.length === 0) {
+    searchResult = { label, highlight: "", items: [] };
+    searcherStatus = "";
       return;
     }
     searcherStatus = "Fetching neighbors...";
@@ -331,15 +484,25 @@
       searchResult = { label, highlight: "", items: [] };
     } finally {
       searcherStatus = "";
-    }
+  }
+}
+
+async function handleImageSearchResult(detail: UploadSearchResultDetail) {
+  let neighbors = detail?.neighbors ?? [];
+  const filters = detail?.filters ?? [];
+  const setStatus = detail?.setStatus;
+
+  let filteredNeighbors = neighbors;
+  try {
+    filteredNeighbors = await filterNeighborsByMetadata(neighbors, filters);
+  } catch (error) {
+    console.error("Failed to apply upload search filters", error);
+    filteredNeighbors = neighbors;
   }
 
-  async function handleImageSearchResult(
-    event: CustomEvent<{ neighbors: { id: any; distance?: number }[]; previewUrl: string | null }>,
-  ) {
-    let neighbors = event.detail?.neighbors ?? [];
-    await displayNeighborResults("Uploaded image neighbors", neighbors);
-  }
+  updateUploadSearchStatus(setStatus, filteredNeighbors, filters);
+  await displayNeighborResults("Uploaded image neighbors", filteredNeighbors);
+}
 
   function clearSearch() {
     searchResult = null;
@@ -850,6 +1013,9 @@
             <ImageSearchWidget
               disabled={!uploadSearchAvailable}
               endpoint={uploadSearchEndpoint}
+              coordinator={coordinator}
+              table={data.table}
+              columns={columns}
               on:result={handleImageSearchResult}
             />
           {/if}
