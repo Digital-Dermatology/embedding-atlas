@@ -5,6 +5,8 @@
 import logging
 import pathlib
 import socket
+import json
+import ast
 from pathlib import Path
 
 import click
@@ -12,6 +14,7 @@ import inquirer
 import numpy as np
 import pandas as pd
 import uvicorn
+import joblib
 
 from .data_source import DataSource
 from .image_assets import (
@@ -58,6 +61,92 @@ def determine_and_load_data(filename: str, splits: list[str] | None = None):
 
 
 SOURCE_DIR_COLUMN_NAME = "__embedding_atlas_source_dir__"
+
+
+def _values_to_numpy(series: pd.Series) -> np.ndarray:
+    arrays = []
+    for value in series:
+        if isinstance(value, np.ndarray):
+            arr = value.astype(np.float32, copy=False)
+        elif isinstance(value, (list, tuple)):
+            arr = np.asarray(value, dtype=np.float32)
+        elif isinstance(value, str):
+            parsed = None
+            try:
+                parsed = json.loads(value)
+            except Exception:
+                try:
+                    parsed = ast.literal_eval(value)
+                except Exception:
+                    parsed = None
+            if isinstance(parsed, (list, tuple)):
+                arr = np.asarray(parsed, dtype=np.float32)
+            elif isinstance(parsed, np.ndarray):
+                arr = parsed.astype(np.float32, copy=False)
+            else:
+                raise ValueError("String value could not be parsed into a numeric array")
+        else:
+            raise ValueError(f"Unsupported vector value type: {type(value)}")
+        if arr.ndim != 1:
+            raise ValueError("Vector values must be 1-dimensional")
+        arrays.append(arr)
+    try:
+        matrix = np.vstack(arrays)
+    except ValueError as exc:
+        raise ValueError(f"Failed to stack vector column values: {exc}") from exc
+    return matrix.astype(np.float32, copy=False)
+
+
+def apply_saved_umap_projection(
+    df: pd.DataFrame, vector_column: str, upload_config_path: str
+) -> tuple[str, str] | None:
+    if vector_column not in df.columns:
+        return None
+    config_path = Path(upload_config_path).resolve()
+    if not config_path.exists():
+        logger.warning("Upload config %s not found; cannot load saved UMAP.", config_path)
+        return None
+    try:
+        with config_path.open("r") as f:
+            config = json.load(f)
+    except Exception as exc:
+        logger.warning("Failed to read upload config %s: %s", config_path, exc)
+        return None
+    umap_cfg = config.get("umap") or {}
+    model_rel = umap_cfg.get("model")
+    if not model_rel:
+        logger.info("Upload config %s does not specify a UMAP model.", config_path)
+        return None
+    model_path = (config_path.parent / model_rel).resolve()
+    if not model_path.exists():
+        logger.warning("UMAP model %s referenced in config is missing.", model_path)
+        return None
+    try:
+        reducer = joblib.load(model_path)
+    except Exception as exc:
+        logger.warning("Failed to load UMAP model %s: %s", model_path, exc)
+        return None
+    try:
+        vectors = _values_to_numpy(df[vector_column])
+    except Exception as exc:
+        logger.warning("Could not convert vector column '%s' into numpy arrays: %s", vector_column, exc)
+        return None
+    try:
+        coords = reducer.transform(vectors)
+    except Exception as exc:
+        logger.warning("Saved UMAP model failed to transform vectors: %s", exc)
+        return None
+    if coords.ndim != 2 or coords.shape[1] < 2:
+        logger.warning("UMAP transform output has unexpected shape %s", coords.shape)
+        return None
+    df["projection_x"] = coords[:, 0]
+    df["projection_y"] = coords[:, 1]
+    logger.info(
+        "Applied saved UMAP model from %s to project vector column '%s'.",
+        model_path,
+        vector_column,
+    )
+    return "projection_x", "projection_y"
 
 
 def load_datasets(
@@ -296,89 +385,96 @@ def main(
     logger.info("Loaded %d rows with %d columns.", df.shape[0], df.shape[1])
 
     if enable_projection and (x_column is None or y_column is None):
-        # No x, y column selected, first see if text/image/vectors column is specified, if not, ask for it
-        if text is None and image is None and vector is None:
-            text = prompt_for_column(
-                df, "Select a column you want to run the embedding on"
-            )
-        umap_args = {}
-        if umap_min_dist is not None:
-            umap_args["min_dist"] = umap_min_dist
-        if umap_n_neighbors is not None:
-            umap_args["n_neighbors"] = umap_n_neighbors
-        if umap_random_state is not None:
-            umap_args["random_state"] = umap_random_state
-        if umap_metric is not None:
-            umap_args["metric"] = umap_metric
-        # Run embedding and projection
-        if text is not None or image is not None or vector is not None:
-            from .projection import (
-                compute_image_projection,
-                compute_text_projection,
-                compute_vector_projection,
-            )
+        used_saved_projection = False
+        if vector is not None and upload_config is not None:
+            projection_cols = apply_saved_umap_projection(df, vector, upload_config)
+            if projection_cols is not None:
+                x_column, y_column = projection_cols
+                used_saved_projection = True
+        if not used_saved_projection:
+            # No x, y column selected, first see if text/image/vectors column is specified, if not, ask for it
+            if text is None and image is None and vector is None:
+                text = prompt_for_column(
+                    df, "Select a column you want to run the embedding on"
+                )
+            umap_args = {}
+            if umap_min_dist is not None:
+                umap_args["min_dist"] = umap_min_dist
+            if umap_n_neighbors is not None:
+                umap_args["n_neighbors"] = umap_n_neighbors
+            if umap_random_state is not None:
+                umap_args["random_state"] = umap_random_state
+            if umap_metric is not None:
+                umap_args["metric"] = umap_metric
+            # Run embedding and projection
+            if text is not None or image is not None or vector is not None:
+                from .projection import (
+                    compute_image_projection,
+                    compute_text_projection,
+                    compute_vector_projection,
+                )
 
-            x_column = find_column_name(df.columns, "projection_x")
-            y_column = find_column_name(df.columns, "projection_y")
-            if neighbors_column is None:
-                neighbors_column = find_column_name(df.columns, "__neighbors")
-                new_neighbors_column = neighbors_column
-            else:
-                # If neighbors_column is already specified, don't overwrite it.
-                new_neighbors_column = None
-            if vector is not None:
-                compute_vector_projection(
-                    df,
-                    vector,
-                    x=x_column,
-                    y=y_column,
-                    neighbors=new_neighbors_column,
-                    umap_args=umap_args,
-                )
-                logger.info(
-                    "Computed vector projection using column '%s' into (%s, %s).",
-                    vector,
-                    x_column,
-                    y_column,
-                )
-            elif text is not None:
-                compute_text_projection(
-                    df,
-                    text,
-                    x=x_column,
-                    y=y_column,
-                    neighbors=new_neighbors_column,
-                    model=model,
-                    trust_remote_code=trust_remote_code,
-                    batch_size=batch_size,
-                    umap_args=umap_args,
-                )
-                logger.info(
-                    "Computed text projection using column '%s' into (%s, %s).",
-                    text,
-                    x_column,
-                    y_column,
-                )
-            elif image is not None:
-                compute_image_projection(
-                    df,
-                    image,
-                    x=x_column,
-                    y=y_column,
-                    neighbors=new_neighbors_column,
-                    model=model,
-                    trust_remote_code=trust_remote_code,
-                    batch_size=batch_size,
-                    umap_args=umap_args,
-                )
-                logger.info(
-                    "Computed image projection using column '%s' into (%s, %s).",
-                    image,
-                    x_column,
-                    y_column,
-                )
-            else:
-                raise RuntimeError("unreachable")
+                x_column = find_column_name(df.columns, "projection_x")
+                y_column = find_column_name(df.columns, "projection_y")
+                if neighbors_column is None:
+                    neighbors_column = find_column_name(df.columns, "__neighbors")
+                    new_neighbors_column = neighbors_column
+                else:
+                    # If neighbors_column is already specified, don't overwrite it.
+                    new_neighbors_column = None
+                if vector is not None:
+                    compute_vector_projection(
+                        df,
+                        vector,
+                        x=x_column,
+                        y=y_column,
+                        neighbors=new_neighbors_column,
+                        umap_args=umap_args,
+                    )
+                    logger.info(
+                        "Computed vector projection using column '%s' into (%s, %s).",
+                        vector,
+                        x_column,
+                        y_column,
+                    )
+                elif text is not None:
+                    compute_text_projection(
+                        df,
+                        text,
+                        x=x_column,
+                        y=y_column,
+                        neighbors=new_neighbors_column,
+                        model=model,
+                        trust_remote_code=trust_remote_code,
+                        batch_size=batch_size,
+                        umap_args=umap_args,
+                    )
+                    logger.info(
+                        "Computed text projection using column '%s' into (%s, %s).",
+                        text,
+                        x_column,
+                        y_column,
+                    )
+                elif image is not None:
+                    compute_image_projection(
+                        df,
+                        image,
+                        x=x_column,
+                        y=y_column,
+                        neighbors=new_neighbors_column,
+                        model=model,
+                        trust_remote_code=trust_remote_code,
+                        batch_size=batch_size,
+                        umap_args=umap_args,
+                    )
+                    logger.info(
+                        "Computed image projection using column '%s' into (%s, %s).",
+                        image,
+                        x_column,
+                        y_column,
+                    )
+                else:
+                    raise RuntimeError("unreachable")
 
     id_column = find_column_name(df.columns, "_row_index")
     df[id_column] = range(df.shape[0])
