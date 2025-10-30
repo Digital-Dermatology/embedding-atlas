@@ -64,6 +64,7 @@ interface UploadSearchResultDetail {
   filters: UploadSearchFilter[];
   setStatus?: (value: string) => void;
   refetch?: (options?: { maxK?: number }) => Promise<boolean>;
+  queryPoint?: { x: number; y: number } | null;
 }
 
   let densityCategoryLimit: number = $state(Math.min(20, maxDensityModeCategories()));
@@ -533,6 +534,7 @@ async function handleImageSearchResult(detail: UploadSearchResultDetail) {
   const filters = payload?.filters ?? [];
   const setStatus = payload?.setStatus;
   const refetch = payload?.refetch;
+  const queryPoint = payload?.queryPoint ?? null;
 
   let filteredNeighbors = neighbors;
   try {
@@ -553,7 +555,16 @@ async function handleImageSearchResult(detail: UploadSearchResultDetail) {
 
   updateUploadSearchStatus(setStatus, filteredNeighbors, filters);
   const items = await displayNeighborResults("Uploaded image neighbors", filteredNeighbors);
-  uploadFocusPoint = computeUploadFocusPoint(items);
+  if (queryPoint != null) {
+    uploadFocusPoint = queryPoint;
+  } else {
+    const newFocusPoint = computeUploadFocusPoint(items);
+    if (newFocusPoint != null) {
+      uploadFocusPoint = newFocusPoint;
+    } else if (!hasActiveFilters) {
+      uploadFocusPoint = null;
+    }
+  }
 }
 
 function clearSearch() {

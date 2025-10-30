@@ -275,6 +275,27 @@
     }
   });
 
+  // Regenerate labels when filtered data changes
+  $effect(() => {
+    // Track dependencies: data.x and data.y (filter changes update these)
+    let dataX = data.x;
+    let dataY = data.y;
+
+    // Only regenerate if we have a viewport and labels are enabled
+    if (
+      renderer != null &&
+      labels == null && // Only for auto-generated labels
+      autoLabelEnabled !== false &&
+      resolvedViewportState != null &&
+      clusterLabels != null && // Only if labels were already generated
+      dataX != null &&
+      dataY != null
+    ) {
+      // Regenerate labels with the new filtered data
+      updateLabels(resolvedViewportState);
+    }
+  });
+
   function render() {
     _request = null;
     if (!canvas || !renderer) {

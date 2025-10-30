@@ -36,6 +36,7 @@ interface $$Events {
     filters: SerializedFilter[];
     setStatus: (value: string) => void;
     refetch: (options?: { maxK?: number }) => Promise<boolean>;
+    queryPoint: { x: number; y: number } | null;
   };
 }
 
@@ -82,6 +83,7 @@ let hasExecutedSearch = false;
 let currentNeighbors: Neighbor[] = [];
 let lastRequestK: number | null = null;
 let refetchInProgress = false;
+let lastQueryPoint: { x: number; y: number } | null = null;
 
   let filterableColumns = $derived(
     columns.filter((col: ColumnDesc) => col.jsType === "string" || col.jsType === "string[]" || col.jsType === "number"),
@@ -371,7 +373,10 @@ let refetchInProgress = false;
     return activeFilters;
   }
 
-  async function requestNeighbors(kValue: number): Promise<Neighbor[]> {
+  async function requestNeighbors(
+    kValue: number,
+  ): Promise<{ neighbors: Neighbor[]; queryPoint: { x: number; y: number } | null }>
+  {
     if (!file) {
       throw new Error("No image selected.");
     }
@@ -387,7 +392,15 @@ let refetchInProgress = false;
     }
     const payload = await resp.json();
     const neighbors: Neighbor[] = Array.isArray(payload?.neighbors) ? payload.neighbors : [];
-    return neighbors;
+    let queryPoint: { x: number; y: number } | null = null;
+    if (payload?.query != null) {
+      const maybeX = Number(payload.query.x);
+      const maybeY = Number(payload.query.y);
+      if (Number.isFinite(maybeX) && Number.isFinite(maybeY)) {
+        queryPoint = { x: maybeX, y: maybeY };
+      }
+    }
+    return { neighbors, queryPoint };
   }
 
   async function performAutoRefetch(options?: { maxK?: number }): Promise<boolean> {
@@ -408,9 +421,9 @@ let refetchInProgress = false;
     errorMessage = null;
     status = "Searching...";
     try {
-      const neighbors = await requestNeighbors(nextK);
+      const { neighbors, queryPoint } = await requestNeighbors(nextK);
       lastRequestK = nextK;
-      emitResult(neighbors, previewUrl, { skipStatusReset: false });
+      emitResult(neighbors, previewUrl, { skipStatusReset: false, queryPoint });
       return true;
     } catch (err: any) {
       console.error("Upload search failed", err);
@@ -423,12 +436,19 @@ let refetchInProgress = false;
     }
   }
 
-  function emitResult(neighbors: Neighbor[], preview: string | null, options?: { skipStatusReset?: boolean }) {
+  function emitResult(
+    neighbors: Neighbor[],
+    preview: string | null,
+    options?: { skipStatusReset?: boolean; queryPoint?: { x: number; y: number } | null },
+  ) {
     currentNeighbors = neighbors;
     hasExecutedSearch = true;
     const serializedFilters = serializeFilters();
     if (!options?.skipStatusReset) {
       status = serializedFilters.length > 0 ? "Filtering..." : "";
+    }
+    if (options && Object.prototype.hasOwnProperty.call(options, "queryPoint")) {
+      lastQueryPoint = options.queryPoint ?? null;
     }
     const detail: $$Events["result"] = {
       neighbors,
@@ -438,6 +458,7 @@ let refetchInProgress = false;
         status = value;
       },
       refetch: performAutoRefetch,
+      queryPoint: lastQueryPoint,
     };
     dispatch("result", detail);
   }
@@ -463,9 +484,9 @@ let refetchInProgress = false;
     status = "Embedding image...";
     uploading = true;
     try {
-      const neighbors = await requestNeighbors(topK);
+      const { neighbors, queryPoint } = await requestNeighbors(topK);
       lastRequestK = topK;
-      emitResult(neighbors, previewUrl, { skipStatusReset: false });
+      emitResult(neighbors, previewUrl, { skipStatusReset: false, queryPoint });
     } catch (err: any) {
       console.error("Upload search failed", err);
       errorMessage = err?.message ?? "Failed to query nearest neighbors.";

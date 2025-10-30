@@ -119,7 +119,7 @@ def make_server(
             return JSONResponse({"error": f"Failed to read upload: {exc}"}, status_code=400)
 
         try:
-            indices, distances = upload_pipeline.search_image(contents, k=max(1, min(k, 200)))
+            indices, distances, coords = upload_pipeline.search_image(contents, k=max(1, min(k, 1000)))
         except Exception as exc:
             return JSONResponse({"error": f"Failed to process image: {exc}"}, status_code=500)
 
@@ -137,7 +137,13 @@ def make_server(
                     "distance": float(dist),
                 }
             )
-        return JSONResponse({"neighbors": neighbors})
+        query_point = None
+        if coords is not None and len(coords) >= 2:
+            query_point = {
+                "x": float(coords[0]),
+                "y": float(coords[1]),
+            }
+        return JSONResponse({"neighbors": neighbors, "query": query_point})
 
     @app.get("/data/images/{column}/{filename}")
     async def get_image(column: str, filename: str):
