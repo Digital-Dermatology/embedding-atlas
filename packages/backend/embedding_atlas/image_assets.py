@@ -147,6 +147,8 @@ def _bytes_from_array(value) -> bytes | None:
         np = None
 
     if np is not None and isinstance(value, np.ndarray):
+        if value.dtype.kind not in ("u", "i", "f", "b"):  # Skip non-numeric arrays (e.g., strings)
+            return None
         value = value.astype("uint8")
         try:
             from PIL import Image
