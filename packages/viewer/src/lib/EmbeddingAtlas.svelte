@@ -557,6 +557,7 @@ async function handleImageSearchResult(detail: UploadSearchResultDetail) {
   const items = await displayNeighborResults("Uploaded image neighbors", filteredNeighbors);
   if (queryPoint != null) {
     uploadFocusPoint = queryPoint;
+    await animateEmbeddingViewToPoint(undefined, queryPoint.x, queryPoint.y);
   } else {
     const newFocusPoint = computeUploadFocusPoint(items);
     if (newFocusPoint != null) {
