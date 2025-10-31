@@ -241,21 +241,26 @@ export function resolveSearcher(options: {
   } else if (neighborsColumn != null) {
     // Search with pre-computed nearest neighbors.
     result.nearestNeighbors = async (id: any): Promise<{ id: any; distance: number }[]> => {
-      let q = SQL.Query.from(table)
-        .select({ knn: SQL.column(neighborsColumn) })
-        .where(SQL.eq(SQL.column(idColumn), SQL.literal(id)));
-      let result = await coordinator.query(q);
-      let items: any[] = Array.from(result);
-      if (items.length != 1) {
+      try {
+        let q = SQL.Query.from(table)
+          .select({ knn: SQL.column(neighborsColumn) })
+          .where(SQL.eq(SQL.column(idColumn), SQL.literal(id)));
+        let result = await coordinator.query(q);
+        let items: any[] = Array.from(result);
+        if (items.length != 1 || items[0].knn == null) {
+          return [];
+        }
+        let { distances, ids } = items[0].knn;
+        let r = Array.from(ids ?? [])
+          .map((nid, i) => {
+            return { id: nid, distance: distances?.[i] };
+          })
+          .filter((x) => x.id != id && x.id != null);
+        return r;
+      } catch (error) {
+        console.warn("Failed to resolve nearest neighbors from precomputed column.", error);
         return [];
       }
-      let { distances, ids } = items[0].knn;
-      let r = Array.from(ids)
-        .map((nid, i) => {
-          return { id: nid, distance: distances[i] };
-        })
-        .filter((x) => x.id != id);
-      return r;
     };
   }
 

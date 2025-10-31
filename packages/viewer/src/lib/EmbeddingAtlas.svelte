@@ -234,10 +234,13 @@ interface UploadSearchResultDetail {
     }),
   );
 
+  let neighborColumnAvailable = $derived(
+    data.neighbors != null && columns.some((column) => column.name === data.neighbors),
+  );
   let allowFullTextSearch = $derived(searcher.fullTextSearch != null);
   let allowVectorSearch = $derived(searcher.vectorSearch != null);
-  let allowNearestNeighborSearch = $derived(searcher.nearestNeighbors != null);
-  let searchMode = $state<"full-text" | "vector">("full-text");
+  let allowNearestNeighborSearch = $derived(searcher.nearestNeighbors != null && neighborColumnAvailable);
+  let searchMode = $state<"full-text" | "vector" | "neighbors">("full-text");
   let searchModeOptions = $derived([
     ...(allowFullTextSearch ? [{ label: "Full Text", value: "full-text" }] : []),
     ...(allowVectorSearch ? [{ label: "Vector", value: "vector" }] : []),
@@ -789,8 +792,8 @@ function clearSearch() {
     class:dark={$darkMode}
     style:color-scheme={$darkMode ? "dark" : "light"}
   >
-    <div class="m-2 flex flex-row justify-between items-center gap-4">
-      <div class="flex flex-row items-center gap-4">
+    <div class="m-2 flex flex-row items-center gap-4">
+      <div class="flex items-center gap-4">
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
@@ -801,76 +804,73 @@ function clearSearch() {
           <img src={skinmapLogo} alt="SkinMap logo" class="h-8 w-auto rounded-md" />
           <div class="text-lg font-semibold tracking-wide text-slate-700 dark:text-slate-200">SkinMap</div>
         </div>
-      <div class="flex flex-row items-center gap-3">
-          {#if showEmbedding}
-            <Select
-              label="Color"
-              value={selectedCategoryColumn}
-              onChange={(v) => (selectedCategoryColumn = v)}
-              options={[
-                { value: null, label: "(none)" },
-                ...columns
-                  .filter(
-                    (c) =>
-                      c.distinctCount > 1 &&
-                      (((c.jsType == "string" || c.jsType == "string[]") && c.distinctCount <= 10000) ||
-                        c.jsType == "number"),
-                  )
-                  .map((c) => ({ value: c.name, label: `${c.name} (${c.type})` })),
-              ]}
-            />
-            <Select
-              label="Cluster labels"
-              value={selectedLabelColumn}
-              onChange={(v) => (selectedLabelColumn = v)}
-              options={[
-                {
-                  value: null,
-                  label:
-                    data.text != null && columns.some((c) => c.name === data.text)
-                      ? `${data.text} (default)`
-                      : "(none)",
-                },
-                ...columns
-                  .filter((c) => c.name !== data.text)
-                  .map((c) => ({ value: c.name, label: `${c.name} (${c.type})` })),
-              ]}
-            />
-            <Select
-              label="Display"
-              value={embeddingViewMode}
-              onChange={(v) => (embeddingViewMode = v)}
-              disabled={categoryLegend != null && categoryLegend.legend.length > densityCategoryLimit}
-              options={[
-                { value: "points", label: "Points" },
-                { value: "density", label: "Density" },
-              ]}
-            />
-            {#if embeddingViewMode == "density"}
-              <div class="select-none flex items-center gap-2">
-                <span class="text-slate-500 dark:text-slate-400">Threshold</span>
-                <Slider bind:value={minimumDensityExpFactor} min={-4} max={4} step={0.1} />
-              </div>
-            {/if}
-          {/if}
-        </div>
       </div>
-      <div
-        class="relative h-full"
-        style:--sidebar-tween={sidebarTween.current}
-        style:--padded-width="{paddedWidth}px"
-        style:max-width="var(--padded-width)"
-        style:flex-basis="calc(var(--padded-width) * var(--sidebar-tween))"
-      >
+      <div class="flex items-center gap-3 flex-1 min-w-0">
+        {#if showEmbedding}
+          <Select
+            label="Color"
+            value={selectedCategoryColumn}
+            onChange={(v) => (selectedCategoryColumn = v)}
+            options={[
+              { value: null, label: "(none)" },
+              ...columns
+                .filter(
+                  (c) =>
+                    c.distinctCount > 1 &&
+                    (((c.jsType == "string" || c.jsType == "string[]") && c.distinctCount <= 10000) || c.jsType == "number"),
+                )
+                .map((c) => ({ value: c.name, label: `${c.name} (${c.type})` })),
+            ]}
+          />
+          <Select
+            label="Cluster labels"
+            value={selectedLabelColumn}
+            onChange={(v) => (selectedLabelColumn = v)}
+            options={[
+              {
+                value: null,
+                label:
+                  data.text != null && columns.some((c) => c.name === data.text)
+                    ? `${data.text} (default)`
+                    : "(none)",
+              },
+              ...columns.filter((c) => c.name !== data.text).map((c) => ({ value: c.name, label: `${c.name} (${c.type})` })),
+            ]}
+          />
+          <Select
+            label="Display"
+            value={embeddingViewMode}
+            onChange={(v) => (embeddingViewMode = v)}
+            disabled={categoryLegend != null && categoryLegend.legend.length > densityCategoryLimit}
+            options={[
+              { value: "points", label: "Points" },
+              { value: "density", label: "Density" },
+            ]}
+          />
+        {/if}
+      </div>
+      <div class="ml-auto flex items-center gap-3">
         <div
-          class="absolute left-0 right-0 top-0 bottom-0 overflow-hidden transition-opacity"
-          style:opacity={showSidebar ? 1 : 0}
+          class="relative h-full"
+          style:--sidebar-tween={sidebarTween.current}
+          style:--padded-width="{paddedWidth}px"
+          style:max-width="var(--padded-width)"
+          style:flex-basis="calc(var(--padded-width) * var(--sidebar-tween))"
         >
-          <div class="flex h-full gap-2 items-center justify-end whitespace-nowrap">
-            <FilteredCount filter={crossFilter} table={data.table} />
-            <div class="flex flex-row gap-1 items-center">
+          <div
+            class="absolute left-0 right-0 top-0 bottom-0 overflow-hidden transition-opacity"
+            style:opacity={showSidebar ? 1 : 0}
+          >
+            <div class="flex h-full items-center gap-3 justify-end whitespace-nowrap">
+              {#if showEmbedding && embeddingViewMode == "density"}
+                <div class="select-none flex items-center gap-2">
+                  <span class="text-slate-500 dark:text-slate-400">Threshold</span>
+                  <Slider bind:value={minimumDensityExpFactor} min={-4} max={4} step={0.1} />
+                </div>
+              {/if}
+              <FilteredCount filter={crossFilter} table={data.table} />
               <button
-                class="flex px-2.5 mr-1 select-none items-center justify-center text-slate-500 dark:text-slate-300 rounded-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 focus-visible:outline-2 outline-blue-600 -outline-offset-1"
+                class="flex px-2.5 select-none items-center justify-center text-slate-500 dark:text-slate-300 rounded-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 focus-visible:outline-2 outline-blue-600 -outline-offset-1"
                 onclick={resetFilter}
                 title="Clear filters"
               >
@@ -879,61 +879,59 @@ function clearSearch() {
             </div>
           </div>
         </div>
-      </div>
-      <div class="w-3"></div>
-      <div class="flex flex-row gap-0.5">
-        <PopupButton icon={IconSettings} title="Options">
-          <div class="min-w-[420px]">
-            <!-- Text style settings -->
-            {#if columns.length > 0}
-              <h4 class="text-slate-500 dark:text-slate-400 mb-2 select-none">Column Styles</h4>
-              <ColumnStylePicker
-                columns={columns}
-                styles={resolvedColumnStyles}
-                onStylesChange={(value) => {
-                  columnStyles = value;
-                }}
-              />
-            {/if}
-            <!-- Export -->
-            <h4 class="text-slate-500 dark:text-slate-400 my-2 select-none">Export</h4>
-            <div class="flex flex-col gap-2">
-              {#if onExportSelection}
-                <div class="flex flex-row gap-2">
-                  <ActionButton
-                    icon={IconExport}
-                    label="Export Selection"
-                    title="Export the selected points"
-                    class="w-48"
-                    onClick={() => onExportSelection(currentPredicate(), exportFormat)}
-                  />
-                  <Select
-                    label="Format"
-                    value={exportFormat}
-                    onChange={(v) => (exportFormat = v)}
-                    options={[
-                      { value: "parquet", label: "Parquet" },
-                      { value: "jsonl", label: "JSONL" },
-                      { value: "json", label: "JSON" },
-                      { value: "csv", label: "CSV" },
-                    ]}
-                  />
-                </div>
-              {/if}
-              {#if onExportApplication}
-                <ActionButton
-                  icon={IconDownload}
-                  label="Export Application"
-                  title="Download a self-contained static web application"
-                  class="w-48"
-                  onClick={onExportApplication}
+        <div class="flex flex-row gap-0.5 items-center">
+          <PopupButton icon={IconSettings} title="Options">
+            <div class="min-w-[420px]">
+              <!-- Text style settings -->
+              {#if columns.length > 0}
+                <h4 class="text-slate-500 dark:text-slate-400 mb-2 select-none">Column Styles</h4>
+                <ColumnStylePicker
+                  columns={columns}
+                  styles={resolvedColumnStyles}
+                  onStylesChange={(value) => {
+                    columnStyles = value;
+                  }}
                 />
               {/if}
+              <!-- Export -->
+              <h4 class="text-slate-500 dark:text-slate-400 my-2 select-none">Export</h4>
+              <div class="flex flex-col gap-2">
+                {#if onExportSelection}
+                  <div class="flex flex-row gap-2">
+                    <ActionButton
+                      icon={IconExport}
+                      label="Export Selection"
+                      title="Export the selected points"
+                      class="w-48"
+                      onClick={() => onExportSelection(currentPredicate(), exportFormat)}
+                    />
+                    <Select
+                      label="Format"
+                      value={exportFormat}
+                      onChange={(v) => (exportFormat = v)}
+                      options={[
+                        { value: "parquet", label: "Parquet" },
+                        { value: "jsonl", label: "JSONL" },
+                        { value: "json", label: "JSON" },
+                        { value: "csv", label: "CSV" },
+                      ]}
+                    />
+                  </div>
+                {/if}
+                {#if onExportApplication}
+                  <ActionButton
+                    icon={IconDownload}
+                    label="Export Application"
+                    title="Download a self-contained static web application"
+                    class="w-48"
+                    onClick={onExportApplication}
+                  />
+                {/if}
+              </div>
+              <h4 class="text-slate-500 dark:text-slate-400 my-2 select-none">About</h4>
+              <div>Embedding Atlas, {EMBEDDING_ATLAS_VERSION}</div>
             </div>
-            <h4 class="text-slate-500 dark:text-slate-400 my-2 select-none">About</h4>
-            <div>Embedding Atlas, {EMBEDDING_ATLAS_VERSION}</div>
-          </div>
-        </PopupButton>
+          </PopupButton>
         {#if colorScheme == null}
           <Button
             icon={$darkMode ? IconLightMode : IconDarkMode}
@@ -949,6 +947,7 @@ function clearSearch() {
         <ToggleButton icon={IconTable} title="Show / hide table" bind:checked={showTable} />
         <ToggleButton icon={IconMenu} title="Show / hide sidebar" bind:checked={showSidebar} />
       </div>
+    </div>
     </div>
     <div class="flex flex-row overflow-hidden h-full">
       {#if showTable || showEmbedding}
