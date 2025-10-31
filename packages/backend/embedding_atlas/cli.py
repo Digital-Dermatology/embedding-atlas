@@ -7,7 +7,9 @@ import pathlib
 import socket
 import json
 import ast
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import click
 import inquirer
@@ -97,9 +99,16 @@ def _values_to_numpy(series: pd.Series) -> np.ndarray:
     return matrix.astype(np.float32, copy=False)
 
 
+@dataclass
+class ProjectionInfo:
+    x_column: str
+    y_column: str
+    reducer: Any
+
+
 def apply_saved_umap_projection(
     df: pd.DataFrame, vector_column: str, upload_config_path: str
-) -> tuple[str, str] | None:
+) -> ProjectionInfo | None:
     if vector_column not in df.columns:
         return None
     config_path = Path(upload_config_path).resolve()
@@ -146,7 +155,7 @@ def apply_saved_umap_projection(
         model_path,
         vector_column,
     )
-    return "projection_x", "projection_y"
+    return ProjectionInfo(x_column="projection_x", y_column="projection_y", reducer=reducer)
 
 
 def load_datasets(
@@ -384,12 +393,13 @@ def main(
 
     logger.info("Loaded %d rows with %d columns.", df.shape[0], df.shape[1])
 
+    saved_projection: ProjectionInfo | None = None
     if enable_projection and (x_column is None or y_column is None):
         used_saved_projection = False
         if vector is not None and upload_config is not None:
-            projection_cols = apply_saved_umap_projection(df, vector, upload_config)
-            if projection_cols is not None:
-                x_column, y_column = projection_cols
+            saved_projection = apply_saved_umap_projection(df, vector, upload_config)
+            if saved_projection is not None:
+                x_column, y_column = saved_projection.x_column, saved_projection.y_column
                 used_saved_projection = True
         if not used_saved_projection:
             # No x, y column selected, first see if text/image/vectors column is specified, if not, ask for it
@@ -569,6 +579,7 @@ def main(
         static_path=static,
         duckdb_uri=duckdb,
         upload_pipeline=upload_pipeline,
+        upload_projection_model=saved_projection.reducer if saved_projection is not None else None,
     )
 
     if enable_auto_port:

@@ -275,25 +275,21 @@
     }
   });
 
-  // Regenerate labels when filtered data changes
-  $effect(() => {
-    // Track dependencies: data.x and data.y (filter changes update these)
-    let dataX = data.x;
-    let dataY = data.y;
+  // Store generated clusters separately so we can filter them reactively
+  let generatedClusters: Cluster[] | null = $state(null);
 
-    // Only regenerate if we have a viewport and labels are enabled
-    if (
-      renderer != null &&
-      labels == null && // Only for auto-generated labels
-      autoLabelEnabled !== false &&
-      resolvedViewportState != null &&
-      clusterLabels != null && // Only if labels were already generated
-      dataX != null &&
-      dataY != null
-    ) {
-      // Regenerate labels with the new filtered data
-      updateLabels(resolvedViewportState);
+  // Derive filtered labels from clusters based on current filtered data
+  let filteredClusterLabels = $derived.by(() => {
+    if (clusterLabels == null || generatedClusters == null) {
+      return clusterLabels;
     }
+
+    // Filter cluster labels based on whether their regions contain filtered points
+    return clusterLabels.filter((label, index) => {
+      if (index >= generatedClusters.length) return true;
+      let cluster = generatedClusters[index];
+      return clusterHasPoints(cluster.rects, data);
+    });
   });
 
   function render() {
@@ -719,10 +715,12 @@
       }
     }
 
-    // Filter clusters that have points in the filtered data, then convert to labels
+    // Store clusters for reactive filtering
+    generatedClusters = newClusters;
+
+    // Convert to labels (filtering happens reactively in filteredClusterLabels)
     let result: Label[] = newClusters
       .filter((x) => x.label != null && x.label.length > 0)
-      .filter((x) => clusterHasPoints(x.rects, data))
       .map((x) => ({
         x: x.x,
         y: x.y,
@@ -837,7 +835,7 @@
     <!-- Cluster labels -->
     {#if showClusterLabels}
       <g>
-        {#each clusterLabels as label}
+        {#each filteredClusterLabels ?? [] as label}
           {@const rows = label.text.split("\n")}
           {@const location = pointLocation(label.coordinate.x, label.coordinate.y)}
           {@const isVisible =

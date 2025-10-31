@@ -25,6 +25,7 @@ def make_server(
     static_path: str,
     duckdb_uri: str | None = None,
     upload_pipeline=None,
+    upload_projection_model=None,
 ):
     """Creates a server for hosting Embedding Atlas"""
 
@@ -118,8 +119,15 @@ def make_server(
         except Exception as exc:
             return JSONResponse({"error": f"Failed to read upload: {exc}"}, status_code=400)
 
+        vector = None
         try:
-            indices, distances, coords = upload_pipeline.search_image(contents, k=max(1, min(k, 1000)))
+            vector = upload_pipeline.embed_bytes(contents)
+        except Exception as exc:
+            return JSONResponse({"error": f"Failed to embed image: {exc}"}, status_code=500)
+
+        search_limit = max(1, min(k, 1000))
+        try:
+            indices, distances = upload_pipeline.find_nearest_neighbors(vector, k=search_limit)
         except Exception as exc:
             return JSONResponse({"error": f"Failed to process image: {exc}"}, status_code=500)
 
@@ -138,11 +146,21 @@ def make_server(
                 }
             )
         query_point = None
+        coords = None
+        try:
+            coords = upload_pipeline.project_vector(vector)
+        except Exception:
+            coords = None
+        if coords is None and upload_projection_model is not None:
+            try:
+                transformed = upload_projection_model.transform(vector.reshape(1, -1))
+                if transformed.ndim >= 2:
+                    transformed = transformed[0]
+                coords = transformed
+            except Exception:
+                coords = None
         if coords is not None and len(coords) >= 2:
-            query_point = {
-                "x": float(coords[0]),
-                "y": float(coords[1]),
-            }
+            query_point = {"x": float(coords[0]), "y": float(coords[1])}
         return JSONResponse({"neighbors": neighbors, "query": query_point})
 
     @app.get("/data/images/{column}/{filename}")
