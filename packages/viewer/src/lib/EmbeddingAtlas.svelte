@@ -535,6 +535,7 @@ async function handleImageSearchResult(detail: UploadSearchResultDetail) {
   const setStatus = payload?.setStatus;
   const refetch = payload?.refetch;
   const queryPoint = payload?.queryPoint ?? null;
+  const desiredTopK = payload?.topK ?? 50;
 
   let filteredNeighbors = neighbors;
   try {
@@ -545,7 +546,7 @@ async function handleImageSearchResult(detail: UploadSearchResultDetail) {
   }
 
   const hasActiveFilters = filters.some(isFilterActive);
-  if (hasActiveFilters && filteredNeighbors.length === 0 && typeof refetch === "function") {
+  if (hasActiveFilters && filteredNeighbors.length < desiredTopK && typeof refetch === "function") {
     uploadFocusPoint = null;
     const triggered = await refetch();
     if (triggered) {

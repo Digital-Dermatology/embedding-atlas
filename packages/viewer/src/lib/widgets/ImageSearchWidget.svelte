@@ -68,7 +68,7 @@ const {
   columns = [] as ColumnDesc[],
 } = $props();
 
-const MAX_AUTO_REFETCH_K = 1000;
+const MAX_AUTO_REFETCH_K = 5000;
 
 let file: File | null = $state(null);
 let previewUrl: string | null = $state(null);
@@ -459,6 +459,7 @@ let lastQueryPoint: { x: number; y: number } | null = null;
       },
       refetch: performAutoRefetch,
       queryPoint: lastQueryPoint,
+      topK,
     };
     dispatch("result", detail);
   }
