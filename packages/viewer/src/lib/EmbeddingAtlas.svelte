@@ -789,69 +789,19 @@ function clearSearch() {
     class:dark={$darkMode}
     style:color-scheme={$darkMode ? "dark" : "light"}
   >
-    <div class="m-2 flex flex-row justify-between items-center">
-      <div class="flex flex-row flex-1 justify-between">
-        <div class="flex flex-row items-center gap-4">
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div
-            class="flex items-center gap-3 pr-4 border-r border-slate-300 dark:border-slate-700 mr-2 cursor-pointer hover:opacity-75 transition-opacity"
-            aria-label="SkinMap"
-            onclick={resetToHomeView}
-          >
-            <img src={skinmapLogo} alt="SkinMap logo" class="h-8 w-auto rounded-md" />
-            <div class="text-lg font-semibold tracking-wide text-slate-700 dark:text-slate-200">SkinMap</div>
-          </div>
-          <div class="flex-1">
-            {#if searcher}
-              <div class="relative">
-                <Input
-                  type="search"
-                  placeholder="Search... (e.g., dermatitis)"
-                  className="w-80 text-base shadow-md shadow-slate-300/40 dark:shadow-black/40"
-                  bind:value={searchQuery}
-                />
-                {#if searchModeOptions.filter((x) => x.value != "neighbors").length > 1}
-                  <Select
-                    options={searchModeOptions.filter((x) => x.value != "neighbors")}
-                    value={searchMode}
-                    onChange={(v) => (searchMode = v)}
-                  />
-                {/if}
-
-                {#if searchResultVisible}
-                  <div
-                    class="absolute w-96 left-0 top-[32px] rounded-md right-0 z-20 border border-slate-300 dark:border-slate-600 overflow-hidden resize shadow-lg bg-white/75 dark:bg-slate-800/75 backdrop-blur-sm"
-                    style:height="48em"
-                  >
-                    {#if searchResult != null}
-                      <SearchResultList
-                        items={searchResult.items}
-                        label={searchResult.label}
-                        highlight={searchResult.highlight}
-                        limit={searchLimit}
-                        onClick={async (item) => {
-                          scrollTableTo(item.id);
-                          searchResultHighlight = item;
-                          await animateEmbeddingViewToPoint(item.id, item.x, item.y);
-                        }}
-                        onClose={clearSearch}
-                        columnStyles={resolvedColumnStyles}
-                      />
-                    {:else if searcherStatus != null}
-                      <div class="p-2">
-                        <Spinner status={searcherStatus} />
-                      </div>
-                    {/if}
-                  </div>
-                {/if}
-              </div>
-            {:else}
-              <div class="text-slate-500 dark:text-slate-400">SkinMap</div>
-            {/if}
-          </div>
+    <div class="m-2 flex flex-row justify-between items-center gap-4">
+      <div class="flex flex-row items-center gap-4">
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div
+          class="flex items-center gap-3 pr-4 border-r border-slate-300 dark:border-slate-700 mr-2 cursor-pointer hover:opacity-75 transition-opacity"
+          aria-label="SkinMap"
+          onclick={resetToHomeView}
+        >
+          <img src={skinmapLogo} alt="SkinMap logo" class="h-8 w-auto rounded-md" />
+          <div class="text-lg font-semibold tracking-wide text-slate-700 dark:text-slate-200">SkinMap</div>
         </div>
-        <div class="flex flex-row items-center gap-3">
+      <div class="flex flex-row items-center gap-3">
           {#if showEmbedding}
             <Select
               label="Color"
@@ -1121,6 +1071,55 @@ function clearSearch() {
               columns={columns}
               on:result={handleImageSearchResult}
             />
+          {/if}
+          {#if searcher}
+            <div class="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm flex flex-col gap-3 p-3">
+              <div class="flex items-center justify-between gap-2">
+                <div class="text-sm font-semibold text-slate-600 dark:text-slate-300 select-none">Search</div>
+                {#if searchModeOptions.filter((x) => x.value != "neighbors").length > 1}
+                  <Select
+                    label="Mode"
+                    options={searchModeOptions.filter((x) => x.value != "neighbors")}
+                    value={searchMode}
+                    onChange={(v) => (searchMode = v)}
+                    class="min-w-[8rem]"
+                  />
+                {/if}
+              </div>
+              <div class="relative">
+                <Input
+                  type="search"
+                  placeholder="Search... (e.g., dermatitis)"
+                  className="w-full text-base shadow-md shadow-slate-300/40 dark:shadow-black/40"
+                  bind:value={searchQuery}
+                />
+                {#if searchResultVisible}
+                  <div
+                    class="absolute left-0 right-0 top-full mt-2 z-20 rounded-md border border-slate-300 dark:border-slate-600 overflow-hidden resize-y shadow-lg bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm h-[28rem] max-h-[65vh]"
+                  >
+                    {#if searchResult != null}
+                      <SearchResultList
+                        items={searchResult.items}
+                        label={searchResult.label}
+                        highlight={searchResult.highlight}
+                        limit={searchLimit}
+                        onClick={async (item) => {
+                          scrollTableTo(item.id);
+                          searchResultHighlight = item;
+                          await animateEmbeddingViewToPoint(item.id, item.x, item.y);
+                        }}
+                        onClose={clearSearch}
+                        columnStyles={resolvedColumnStyles}
+                      />
+                    {:else if searcherStatus != null}
+                      <div class="p-2">
+                        <Spinner status={searcherStatus} />
+                      </div>
+                    {/if}
+                  </div>
+                {/if}
+              </div>
+            </div>
           {/if}
           <div
             class="flex-1 w-full rounded-md overflow-x-hidden overflow-y-scroll"
