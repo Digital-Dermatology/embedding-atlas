@@ -34,6 +34,10 @@ export interface EmbeddingViewMosaicProps {
    *  The text content is also used to generate labels automatically. */
   text?: string | null;
 
+  /** The column used when generating automatic cluster labels.
+   *  If not specified, falls back to the `text` column. */
+  labelColumn?: string | null;
+
   /** The name of the identifier (aka., id) column.
    *  If specified, the `selection` object will contain an `identifier` property that you can use to identify the point. */
   identifier?: string | null;

@@ -31,6 +31,7 @@
     x: string;
     y: string;
     text?: string | null;
+    labelColumn?: string | null;
     additionalFields?: Record<string, DataField>;
     categoryLegend?: EmbeddingLegend | null;
 
@@ -57,6 +58,7 @@
     x,
     y,
     text,
+    labelColumn,
     categoryLegend,
     additionalFields,
     config,
@@ -175,6 +177,7 @@
       colorScheme: $darkMode ? "dark" : "light",
     }}
     text={text}
+    labelColumn={labelColumn ?? text ?? null}
     category={categoryLegend?.indexColumn}
     categoryColors={categoryLegend?.legend.map((d) => d.color)}
     additionalFields={additionalFields}

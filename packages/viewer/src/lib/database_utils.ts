@@ -225,12 +225,39 @@ export class TableInfo {
 
     let colors = defaultCategoryColors(values.length);
 
-    let legend: EmbeddingLegend["legend"] = values.map(({ value }, i) => ({
-      label: value,
-      color: colors[i],
-      predicate: SQL.eq(SQL.cast(SQL.column(column), "TEXT"), SQL.literal(value)),
-      count: countMap.get(i) ?? 0,
-    }));
+    let legend: EmbeddingLegend["legend"] = values.map(({ value }, i) => {
+      let displayValue = value;
+      if (typeof value === "string") {
+        let trimmed = value.trim();
+        if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+          let parsed: any = null;
+          try {
+            parsed = JSON.parse(trimmed);
+          } catch {
+            parsed = trimmed
+              .slice(1, -1)
+              .split(",")
+              .map((part) => part.replace(/^"+|"+$/g, "").trim())
+              .filter((part) => part.length > 0);
+          }
+          if (Array.isArray(parsed)) {
+            let joined = parsed
+              .map((item) => (item == null ? "" : String(item).trim()))
+              .filter((item) => item.length > 0)
+              .join(", ");
+            if (joined.length > 0) {
+              displayValue = joined;
+            }
+          }
+        }
+      }
+      return {
+        label: displayValue,
+        color: colors[i],
+        predicate: SQL.eq(SQL.cast(SQL.column(column), "TEXT"), SQL.literal(value)),
+        count: countMap.get(i) ?? 0,
+      };
+    });
 
     if (otherCount > 0) {
       let { otherCategoryCount } = await this.queryOne(SQL.sql`

@@ -65,6 +65,7 @@ interface UploadSearchResultDetail {
   setStatus?: (value: string) => void;
   refetch?: (options?: { maxK?: number }) => Promise<boolean>;
   queryPoint?: { x: number; y: number } | null;
+  topK?: number;
 }
 
   let densityCategoryLimit: number = $state(Math.min(20, maxDensityModeCategories()));
@@ -583,6 +584,14 @@ function clearSearch() {
     }
   });
 
+  let selectedLabelColumn: string | null = $state(null);
+
+  $effect(() => {
+    if (selectedLabelColumn != null && columns.every((c) => c.name !== selectedLabelColumn)) {
+      selectedLabelColumn = null;
+    }
+  });
+
   // Category column
 
   let selectedCategoryColumn: string | null = $state(null);
@@ -598,7 +607,7 @@ function clearSearch() {
       return;
     }
     let result;
-    if (candidate.jsType == "string") {
+    if (candidate.jsType == "string" || candidate.jsType == "string[]") {
       result = await tableInfo.makeCategoryColumn(candidate.name, 10);
     } else if (candidate.jsType == "number") {
       if (candidate.distinctCount <= 10) {
@@ -709,6 +718,7 @@ function clearSearch() {
     load("showSidebar", (x) => (showSidebar = x));
     load("columnStyles", (x) => (columnStyles = x));
     load("selectedCategoryColumn", (x) => (selectedCategoryColumn = x));
+    load("selectedLabelColumn", (x) => (selectedLabelColumn = x));
     load("embeddingViewMode", (x) => (embeddingViewMode = x));
     load("minimumDensityExpFactor", (x) => (minimumDensityExpFactor = x));
     load("userDarkMode", (x) => ($userDarkMode = x));
@@ -733,6 +743,7 @@ function clearSearch() {
         showSidebar: showSidebar,
         columnStyles: columnStyles,
         selectedCategoryColumn: selectedCategoryColumn,
+        selectedLabelColumn: selectedLabelColumn,
         embeddingViewMode: embeddingViewMode,
         minimumDensityExpFactor: minimumDensityExpFactor,
         userDarkMode: $userDarkMode,
@@ -852,8 +863,26 @@ function clearSearch() {
                   .filter(
                     (c) =>
                       c.distinctCount > 1 &&
-                      ((c.jsType == "string" && c.distinctCount <= 10000) || c.jsType == "number"),
+                      (((c.jsType == "string" || c.jsType == "string[]") && c.distinctCount <= 10000) ||
+                        c.jsType == "number"),
                   )
+                  .map((c) => ({ value: c.name, label: `${c.name} (${c.type})` })),
+              ]}
+            />
+            <Select
+              label="Cluster labels"
+              value={selectedLabelColumn}
+              onChange={(v) => (selectedLabelColumn = v)}
+              options={[
+                {
+                  value: null,
+                  label:
+                    data.text != null && columns.some((c) => c.name === data.text)
+                      ? `${data.text} (default)`
+                      : "(none)",
+                },
+                ...columns
+                  .filter((c) => c.name !== data.text)
                   .map((c) => ({ value: c.name, label: `${c.name} (${c.type})` })),
               ]}
             />
@@ -984,6 +1013,7 @@ function clearSearch() {
                 x={data.projection.x}
                 y={data.projection.y}
                 text={data.text}
+                labelColumn={selectedLabelColumn}
                 additionalFields={additionalFields}
                 categoryLegend={categoryLegend}
                 config={{

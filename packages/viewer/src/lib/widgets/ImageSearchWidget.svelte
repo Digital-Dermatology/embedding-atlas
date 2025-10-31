@@ -37,6 +37,7 @@ interface $$Events {
     setStatus: (value: string) => void;
     refetch: (options?: { maxK?: number }) => Promise<boolean>;
     queryPoint: { x: number; y: number } | null;
+    topK: number;
   };
 }
 

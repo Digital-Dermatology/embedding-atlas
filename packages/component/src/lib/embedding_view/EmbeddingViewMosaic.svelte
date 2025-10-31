@@ -29,6 +29,7 @@
     y,
     category = null,
     text = null,
+    labelColumn = null,
     identifier = null,
     filter = null,
     categoryColors = null,
@@ -332,7 +333,8 @@
 
   // Cluster Labels
   async function queryClusterLabels(clusters: Rectangle[][]): Promise<(string | null)[]> {
-    if (text == null) {
+    let labelSource = labelColumn ?? text;
+    if (labelSource == null) {
       return clusters.map(() => null);
     }
     // Create text summarizer (in the worker)
@@ -347,20 +349,27 @@
     while (true) {
       let r = await coordinator.query(
         SQL.Query.from(table)
-          .select({ x: SQL.column(x), y: SQL.column(y), text: SQL.column(text) })
+          .select({
+            x: SQL.column(x),
+            y: SQL.column(y),
+            label: SQL.cast(SQL.column(labelSource), "TEXT"),
+          })
           .offset(start)
           .limit(chunkSize),
+      );
+      let labelValues = Array.from(r.getChild("label").toArray(), (value: any) =>
+        value == null ? "" : String(value),
       );
       let data = {
         x: r.getChild("x").toArray(),
         y: r.getChild("y").toArray(),
-        text: r.getChild("text").toArray(),
+        text: labelValues,
       };
       if (lastAdd != null) {
         await lastAdd;
       }
       lastAdd = textSummarizerAdd(summarizer, data);
-      if (r.getChild("text").length < chunkSize) {
+      if (r.getChild("label").length < chunkSize) {
         break;
       }
       start += chunkSize;
@@ -389,6 +398,7 @@
   pixelRatio={pixelRatio ?? 2}
   theme={theme}
   config={config}
+  autoLabelColumn={labelColumn ?? text ?? null}
   data={{ x: xData, y: yData, category: categoryData }}
   totalCount={totalCount}
   maxDensity={maxDensity}

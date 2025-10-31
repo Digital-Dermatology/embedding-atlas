@@ -13,6 +13,7 @@
     pixelRatio: number;
     theme: ThemeConfig | null;
     config: EmbeddingViewConfig | null;
+    autoLabelColumn?: string | null;
     totalCount: number | null;
     maxDensity: number | null;
     labels?: Label[] | null;
@@ -141,6 +142,7 @@
     pixelRatio = 2,
     theme = null,
     config = null,
+    autoLabelColumn = null,
     totalCount = null,
     maxDensity = null,
     labels = null,
@@ -278,17 +280,56 @@
   // Store generated clusters separately so we can filter them reactively
   let generatedClusters: Cluster[] | null = $state(null);
 
+  let lastAutoLabelColumn: string | null = null;
+  $effect(() => {
+    let column = autoLabelColumn ?? null;
+    if (column !== lastAutoLabelColumn) {
+      lastAutoLabelColumn = column;
+      generatedClusters = null;
+      clusterLabels = [];
+      needsUpdateLabels = true;
+    }
+  });
+
+  // Spatial grid for fast point-in-region queries
+  let spatialGrid: Map<string, number[]> | null = $state(null);
+  let spatialGridSize = 100; // Grid resolution
+
+  // Build spatial grid when data changes
+  $effect(() => {
+    if (data.x.length === 0) {
+      spatialGrid = null;
+      return;
+    }
+
+    const grid = new Map<string, number[]>();
+    for (let i = 0; i < data.x.length; i++) {
+      const cellX = Math.floor(data.x[i] * spatialGridSize);
+      const cellY = Math.floor(data.y[i] * spatialGridSize);
+      const key = `${cellX},${cellY}`;
+      if (!grid.has(key)) {
+        grid.set(key, []);
+      }
+      grid.get(key)!.push(i);
+    }
+    spatialGrid = grid;
+  });
+
   // Derive filtered labels from clusters based on current filtered data
   let filteredClusterLabels = $derived.by(() => {
-    if (clusterLabels == null || generatedClusters == null) {
+    if (clusterLabels == null || generatedClusters == null || spatialGrid == null) {
       return clusterLabels;
     }
 
+    // Capture non-null values for use in filter callback
+    const clusters = generatedClusters;
+    const grid = spatialGrid;
+
     // Filter cluster labels based on whether their regions contain filtered points
     return clusterLabels.filter((label, index) => {
-      if (index >= generatedClusters.length) return true;
-      let cluster = generatedClusters[index];
-      return clusterHasPoints(cluster.rects, data);
+      if (index >= clusters.length) return true;
+      let cluster = clusters[index];
+      return clusterHasPointsFast(cluster.rects, data, grid, spatialGridSize);
     });
   });
 
@@ -662,14 +703,35 @@
     return collectedClusters.filter((x) => x.sumDensity / maxDensity > densityThreshold);
   }
 
-  function clusterHasPoints(rects: Rectangle[], data: { x: Float32Array<ArrayBuffer>; y: Float32Array<ArrayBuffer> }): boolean {
-    // Check if any point from the filtered data falls within the cluster region
-    for (let i = 0; i < data.x.length; i++) {
-      let px = data.x[i];
-      let py = data.y[i];
-      for (let rect of rects) {
-        if (px >= rect.xMin && px <= rect.xMax && py >= rect.yMin && py <= rect.yMax) {
-          return true;
+  function clusterHasPointsFast(
+    rects: Rectangle[],
+    data: { x: Float32Array<ArrayBuffer>; y: Float32Array<ArrayBuffer> },
+    grid: Map<string, number[]>,
+    gridSize: number
+  ): boolean {
+    // Use spatial grid to only check points in relevant cells
+    for (let rect of rects) {
+      // Find grid cells that overlap with this rectangle
+      const minCellX = Math.floor(rect.xMin * gridSize);
+      const maxCellX = Math.ceil(rect.xMax * gridSize);
+      const minCellY = Math.floor(rect.yMin * gridSize);
+      const maxCellY = Math.ceil(rect.yMax * gridSize);
+
+      // Check each overlapping cell
+      for (let cx = minCellX; cx <= maxCellX; cx++) {
+        for (let cy = minCellY; cy <= maxCellY; cy++) {
+          const key = `${cx},${cy}`;
+          const pointIndices = grid.get(key);
+          if (!pointIndices) continue;
+
+          // Check if any point in this cell falls within the rectangle
+          for (let i of pointIndices) {
+            const px = data.x[i];
+            const py = data.y[i];
+            if (px >= rect.xMin && px <= rect.xMax && py >= rect.yMin && py <= rect.yMax) {
+              return true;
+            }
+          }
         }
       }
     }
@@ -683,10 +745,11 @@
 
     let cacheKey = await cacheKeyForObject({
       autoLabel: {
-        version: 2, // Increment version since we're changing cache structure
+        version: 3, // Increment version since we're changing cache structure
         viewport,
         stopWords: config?.autoLabelStopWords,
         densityThreshold: config?.autoLabelDensityThreshold,
+        column: autoLabelColumn ?? null,
       },
     });
 
