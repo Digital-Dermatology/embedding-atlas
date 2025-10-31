@@ -3,8 +3,6 @@
   import * as SQL from "@uwdata/mosaic-sql";
   import * as vg from "@uwdata/vgplot";
   import { onDestroy, onMount } from "svelte";
-  import { cubicOut } from "svelte/easing";
-  import { Tween } from "svelte/motion";
   import { slide } from "svelte/transition";
 
   import { maxDensityModeCategories } from "@embedding-atlas/component";
@@ -165,6 +163,7 @@ interface UploadSearchResultDetail {
     return predicateToString(crossFilter.predicate(null));
   }
 
+  let rawColumns: ColumnDesc[] = $state.raw([]);
   let columns: ColumnDesc[] = $state.raw([]);
   let plots: Plot[] = $state.raw([]);
   let plotStateStores = new PlotStateStoreManager();
@@ -174,11 +173,6 @@ interface UploadSearchResultDetail {
   // let selection: any[] | null = $state.raw([]);
   let additionalFields = $derived(makeAdditionalFields(columns));
 
-  let sidebarTween = new Tween(1, { duration: animationDuration, easing: cubicOut });
-
-  $effect.pre(() => {
-    sidebarTween.set(showSidebar ? 1 : 0);
-  });
 
   // Column styles
   let columnStyles: Record<string, ColumnStyle> = $state.raw({});
@@ -235,7 +229,7 @@ interface UploadSearchResultDetail {
   );
 
   let neighborColumnAvailable = $derived(
-    data.neighbors != null && columns.some((column) => column.name === data.neighbors),
+    data.neighbors != null && rawColumns.some((column) => column.name === data.neighbors),
   );
   let allowFullTextSearch = $derived(searcher.fullTextSearch != null);
   let allowVectorSearch = $derived(searcher.vectorSearch != null);
@@ -765,7 +759,9 @@ function clearSearch() {
 
   onMount(async () => {
     let ignoreColumns = [data.id, data.text, data.projection?.x, data.projection?.y].filter((x) => x != null);
-    columns = (await tableInfo.columnDescriptions()).filter((x) => !x.name.startsWith("__"));
+    let columnDescriptions = await tableInfo.columnDescriptions();
+    rawColumns = columnDescriptions;
+    columns = columnDescriptions.filter((x) => !x.name.startsWith("__"));
     if (plots.length == 0) {
       plots = await tableInfo.defaultPlots(columns.filter((x) => ignoreColumns.indexOf(x.name) < 0));
     }
@@ -783,7 +779,6 @@ function clearSearch() {
     }
   }
 
-  let paddedWidth = $derived(panelWidth - 149.5 - ($darkMode ? 0 : 1) + (colorScheme != null ? 30 : 0));
 </script>
 
 <div class="embedding-atlas-root" style:width="100%" style:height="100%">
@@ -850,35 +845,20 @@ function clearSearch() {
         {/if}
       </div>
       <div class="ml-auto flex items-center gap-3">
-        <div
-          class="relative h-full"
-          style:--sidebar-tween={sidebarTween.current}
-          style:--padded-width="{paddedWidth}px"
-          style:max-width="var(--padded-width)"
-          style:flex-basis="calc(var(--padded-width) * var(--sidebar-tween))"
-        >
-          <div
-            class="absolute left-0 right-0 top-0 bottom-0 overflow-hidden transition-opacity"
-            style:opacity={showSidebar ? 1 : 0}
-          >
-            <div class="flex h-full items-center gap-3 justify-end whitespace-nowrap">
-              {#if showEmbedding && embeddingViewMode == "density"}
-                <div class="select-none flex items-center gap-2">
-                  <span class="text-slate-500 dark:text-slate-400">Threshold</span>
-                  <Slider bind:value={minimumDensityExpFactor} min={-4} max={4} step={0.1} />
-                </div>
-              {/if}
-              <FilteredCount filter={crossFilter} table={data.table} />
-              <button
-                class="flex px-2.5 select-none items-center justify-center text-slate-500 dark:text-slate-300 rounded-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 focus-visible:outline-2 outline-blue-600 -outline-offset-1"
-                onclick={resetFilter}
-                title="Clear filters"
-              >
-                Clear
-              </button>
-            </div>
+        {#if showEmbedding && embeddingViewMode == "density"}
+          <div class="select-none flex items-center gap-2">
+            <span class="text-slate-500 dark:text-slate-400">Threshold</span>
+            <Slider bind:value={minimumDensityExpFactor} min={-4} max={4} step={0.1} />
           </div>
-        </div>
+        {/if}
+        <FilteredCount filter={crossFilter} table={data.table} />
+        <button
+          class="flex px-2.5 select-none items-center justify-center text-slate-500 dark:text-slate-300 rounded-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 focus-visible:outline-2 outline-blue-600 -outline-offset-1"
+          onclick={resetFilter}
+          title="Clear filters"
+        >
+          Clear
+        </button>
         <div class="flex flex-row gap-0.5 items-center">
           <PopupButton icon={IconSettings} title="Options">
             <div class="min-w-[420px]">
