@@ -7,6 +7,7 @@ import pathlib
 import socket
 import json
 import ast
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -546,6 +547,9 @@ def main(
         image_relative_path=IMAGE_RELATIVE_PATH,
     )
 
+    vector_neighbors_endpoint = None
+    max_point_neighbors = 50
+
     upload_pipeline = None
     if upload_config is not None:
 
@@ -560,6 +564,16 @@ def main(
                 "endpoint": "upload-neighbors",
             }
             logger.info("Upload pipeline enabled.")
+            if vector is not None and vector in df.columns:
+                vector_neighbors_endpoint = "/data/point-neighbors"
+                try:
+                    max_point_neighbors = max(
+                        1, int(os.environ.get("ATLAS_POINT_NEIGHBORS_K", "50"))
+                    )
+                except ValueError:
+                    max_point_neighbors = 50
+                props.setdefault("data", {})
+                props["data"]["vectorNeighborsEndpoint"] = vector_neighbors_endpoint
         else:
             logger.warning("Upload pipeline could not be initialized; image upload disabled.")
 
@@ -580,6 +594,9 @@ def main(
         duckdb_uri=duckdb,
         upload_pipeline=upload_pipeline,
         upload_projection_model=saved_projection.reducer if saved_projection is not None else None,
+        vector_neighbor_column=vector if vector_neighbors_endpoint is not None else None,
+        id_column=id_column,
+        max_neighbor_results=max_point_neighbors,
     )
 
     if enable_auto_port:

@@ -47,6 +47,9 @@ export interface EmbeddingAtlasProps {
 
     /** The column for text. The text will be used as content for the tooltip and search features. */
     text?: string | null;
+
+    /** Endpoint for on-demand nearest neighbor lookups when no precomputed column is available. */
+    vectorNeighborsEndpoint?: string | null;
   };
 
   /** The color scheme. */

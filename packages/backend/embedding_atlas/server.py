@@ -11,6 +11,7 @@ from functools import lru_cache
 from typing import Callable
 
 import duckdb
+import numpy as np
 from fastapi import FastAPI, File, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -26,6 +27,9 @@ def make_server(
     duckdb_uri: str | None = None,
     upload_pipeline=None,
     upload_projection_model=None,
+    vector_neighbor_column: str | None = None,
+    id_column: str | None = None,
+    max_neighbor_results: int = 50,
 ):
     """Creates a server for hosting Embedding Atlas"""
 
@@ -47,9 +51,15 @@ def make_server(
 
     metadata_props = data_source.metadata.get("props", {}) if isinstance(data_source.metadata, dict) else {}
     data_meta = metadata_props.get("data", {}) if isinstance(metadata_props, dict) else {}
-    id_column = data_meta.get("id")
+    id_column = id_column or data_meta.get("id")
     dataset_df = data_source.dataset
     total_rows = len(dataset_df)
+    if vector_neighbor_column is not None and vector_neighbor_column not in dataset_df.columns:
+        vector_neighbor_column = None
+    try:
+        max_neighbor_results = max(1, int(max_neighbor_results))
+    except (TypeError, ValueError):
+        max_neighbor_results = 50
     json_scalar_types = (str, int, float, bool)
 
     def _json_scalar(value):
@@ -70,6 +80,46 @@ def make_server(
             except Exception:
                 pass
         return str(value)
+
+    def _locate_row_by_identifier(raw_identifier: str):
+        if id_column is None or id_column not in dataset_df.columns:
+            return None, None
+
+        series = dataset_df[id_column]
+        key = raw_identifier
+        dtype = getattr(series.dtype, "kind", None)
+
+        if dtype in {"i", "u"}:  # integer / unsigned
+            try:
+                key = int(raw_identifier)
+            except ValueError:
+                pass
+        elif dtype == "f":
+            try:
+                key = float(raw_identifier)
+            except ValueError:
+                pass
+        elif dtype == "b":
+            lowered = raw_identifier.strip().lower()
+            if lowered in {"true", "1", "t", "yes"}:
+                key = True
+            elif lowered in {"false", "0", "f", "no"}:
+                key = False
+
+        mask = series == key
+        rows = series[mask]
+        if len(rows) > 0:
+            return rows.index[0], rows.iloc[0]
+
+        try:
+            str_mask = series.astype(str) == raw_identifier
+            rows = series[str_mask]
+            if len(rows) > 0:
+                return rows.index[0], rows.iloc[0]
+        except Exception:
+            pass
+
+        return None, None
 
     @app.get("/data/metadata.json")
     async def get_metadata():
@@ -162,6 +212,63 @@ def make_server(
         if coords is not None and len(coords) >= 2:
             query_point = {"x": float(coords[0]), "y": float(coords[1])}
         return JSONResponse({"neighbors": neighbors, "query": query_point})
+
+    @app.get("/data/point-neighbors")
+    async def point_neighbors(identifier: str, k: int = 50):
+        if (
+            upload_pipeline is None
+            or vector_neighbor_column is None
+            or id_column is None
+            or id_column not in dataset_df.columns
+        ):
+            return JSONResponse({"error": "Point neighbor search unavailable."}, status_code=404)
+
+        try:
+            limit = max(1, min(int(k), max_neighbor_results))
+        except (TypeError, ValueError):
+            limit = max_neighbor_results
+
+        row_index, actual_identifier = _locate_row_by_identifier(identifier)
+        if row_index is None:
+            return JSONResponse({"error": f"Identifier '{identifier}' not found."}, status_code=404)
+
+        try:
+            vector_value = dataset_df.at[row_index, vector_neighbor_column]
+        except KeyError:
+            return JSONResponse({"error": "Vector column missing."}, status_code=500)
+
+        try:
+            vector = np.asarray(vector_value, dtype=np.float32).reshape(-1)
+        except Exception as exc:
+            return JSONResponse({"error": f"Failed to load vector: {exc}"}, status_code=500)
+
+        if vector.size == 0:
+            return JSONResponse({"error": "Vector column is empty."}, status_code=500)
+
+        neighbors_k = min(limit + 1, max_neighbor_results + 1, total_rows)
+        try:
+            indices, distances = upload_pipeline.find_nearest_neighbors(vector, k=neighbors_k)
+        except Exception as exc:
+            return JSONResponse({"error": f"Failed to compute neighbors: {exc}"}, status_code=500)
+
+        id_values = dataset_df[id_column].tolist()
+        neighbors = []
+        for idx_val, dist in zip(list(indices or []), list(distances or [])):
+            if idx_val is None or idx_val < 0 or idx_val >= len(id_values):
+                continue
+            neighbor_id = id_values[idx_val]
+            if neighbor_id == actual_identifier:
+                continue
+            neighbors.append(
+                {
+                    "id": _json_scalar(neighbor_id),
+                    "distance": float(dist),
+                }
+            )
+            if len(neighbors) >= limit:
+                break
+
+        return JSONResponse({"neighbors": neighbors})
 
     @app.get("/data/images/{column}/{filename}")
     async def get_image(column: str, filename: str):

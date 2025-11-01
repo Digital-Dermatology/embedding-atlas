@@ -163,7 +163,6 @@ interface UploadSearchResultDetail {
     return predicateToString(crossFilter.predicate(null));
   }
 
-  let rawColumns: ColumnDesc[] = $state.raw([]);
   let columns: ColumnDesc[] = $state.raw([]);
   let plots: Plot[] = $state.raw([]);
   let plotStateStores = new PlotStateStoreManager();
@@ -223,17 +222,15 @@ interface UploadSearchResultDetail {
       idColumn: data.id,
       textColumn: data.text,
       neighborsColumn: data.neighbors,
+      vectorNeighborsEndpoint: data.vectorNeighborsEndpoint ?? null,
       searcher: specifiedSearcher,
       textColumns: searchColumns,
     }),
   );
 
-  let neighborColumnAvailable = $derived(
-    data.neighbors != null && rawColumns.some((column) => column.name === data.neighbors),
-  );
   let allowFullTextSearch = $derived(searcher.fullTextSearch != null);
   let allowVectorSearch = $derived(searcher.vectorSearch != null);
-  let allowNearestNeighborSearch = $derived(searcher.nearestNeighbors != null && neighborColumnAvailable);
+  let allowNearestNeighborSearch = $derived(searcher.nearestNeighbors != null);
   let searchMode = $state<"full-text" | "vector" | "neighbors">("full-text");
   let searchModeOptions = $derived([
     ...(allowFullTextSearch ? [{ label: "Full Text", value: "full-text" }] : []),
@@ -759,9 +756,7 @@ function clearSearch() {
 
   onMount(async () => {
     let ignoreColumns = [data.id, data.text, data.projection?.x, data.projection?.y].filter((x) => x != null);
-    let columnDescriptions = await tableInfo.columnDescriptions();
-    rawColumns = columnDescriptions;
-    columns = columnDescriptions.filter((x) => !x.name.startsWith("__"));
+    columns = (await tableInfo.columnDescriptions()).filter((x) => !x.name.startsWith("__"));
     if (plots.length == 0) {
       plots = await tableInfo.defaultPlots(columns.filter((x) => ignoreColumns.indexOf(x.name) < 0));
     }
@@ -818,7 +813,7 @@ function clearSearch() {
             ]}
           />
           <Select
-            label="Cluster labels"
+            label="Labels"
             value={selectedLabelColumn}
             onChange={(v) => (selectedLabelColumn = v)}
             options={[

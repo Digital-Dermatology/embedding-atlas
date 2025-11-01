@@ -77,6 +77,13 @@ export class BackendDataSource implements DataSource {
       };
     }
 
+    if (metadata.props?.data?.vectorNeighborsEndpoint) {
+      metadata.props.data.vectorNeighborsEndpoint = joinUrl(
+        this.serverUrl,
+        metadata.props.data.vectorNeighborsEndpoint,
+      );
+    }
+
     onStatus("Initializing DuckDB...");
     let dbType = metadata.database?.type ?? "wasm";
     await initializeDatabase(coordinator, dbType, metadata.database?.uri ?? joinUrl(this.serverUrl, "query"));

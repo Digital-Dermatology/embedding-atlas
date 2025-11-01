@@ -5,6 +5,8 @@ import * as SQL from "@uwdata/mosaic-sql";
 
 import type { Searcher } from "./api.js";
 
+const DEFAULT_NEIGHBOR_LIMIT = 500;
+
 class SearchWorkerAPI {
   worker: Worker;
   callbacks: Map<string, (data: any) => void>;
@@ -204,8 +206,18 @@ export function resolveSearcher(options: {
   textColumn?: string | null;
   textColumns?: string[] | null;
   neighborsColumn?: string | null;
+  vectorNeighborsEndpoint?: string | null;
 }): Searcher {
-  let { coordinator, table, idColumn, searcher, textColumn, textColumns, neighborsColumn } = options;
+  let {
+    coordinator,
+    table,
+    idColumn,
+    searcher,
+    textColumn,
+    textColumns,
+    neighborsColumn,
+    vectorNeighborsEndpoint,
+  } = options;
 
   let result: Searcher = {};
 
@@ -244,7 +256,8 @@ export function resolveSearcher(options: {
       try {
         let q = SQL.Query.from(table)
           .select({ knn: SQL.column(neighborsColumn) })
-          .where(SQL.eq(SQL.column(idColumn), SQL.literal(id)));
+          .where(SQL.eq(SQL.column(idColumn), SQL.literal(id)))
+          .limit(1);
         let result = await coordinator.query(q);
         let items: any[] = Array.from(result);
         if (items.length != 1 || items[0].knn == null) {
@@ -260,6 +273,38 @@ export function resolveSearcher(options: {
       } catch (error) {
         console.warn("Failed to resolve nearest neighbors from precomputed column.", error);
         return [];
+      }
+    };
+  } else if (vectorNeighborsEndpoint != null) {
+    let endpoint = vectorNeighborsEndpoint;
+    result.nearestNeighbors = async (
+      id: any,
+      options: { limit?: number; predicate?: string | null; onStatus?: (status: string) => void } = {},
+    ): Promise<{ id: any; distance?: number }[]> => {
+      let limit = Math.max(1, Math.min(options.limit ?? DEFAULT_NEIGHBOR_LIMIT, DEFAULT_NEIGHBOR_LIMIT));
+      options.onStatus?.("Searching neighbors...");
+      try {
+        let url = new URL(endpoint, typeof window !== "undefined" ? window.location.href : "http://localhost");
+        url.searchParams.set("id", String(id));
+        url.searchParams.set("k", String(Math.min(limit + 1, DEFAULT_NEIGHBOR_LIMIT)));
+        let response = await fetch(url.toString());
+        if (!response.ok) {
+          throw new Error(`Failed with status ${response.status}`);
+        }
+        let payload = await response.json();
+        let neighbors: any[] = Array.isArray(payload?.neighbors) ? payload.neighbors : [];
+        return neighbors
+          .filter((neighbor) => neighbor && neighbor.id != null)
+          .map((neighbor) => ({
+            id: neighbor.id,
+            distance: typeof neighbor.distance === "number" ? neighbor.distance : undefined,
+          }))
+          .slice(0, limit);
+      } catch (error) {
+        console.warn("Failed to fetch nearest neighbors from endpoint.", error);
+        return [];
+      } finally {
+        options.onStatus?.("");
       }
     };
   }
