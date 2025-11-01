@@ -12,27 +12,46 @@
     items: SearchResultItem[];
     label: string;
     highlight: string;
-    limit?: number;
+    visibleCount?: number;
+    hasMore?: boolean;
+    loadingMore?: boolean;
     columnStyles?: Record<string, ColumnStyle>;
     onClick?: (item: SearchResultItem) => void;
     onClose?: () => void;
+    onLoadMore?: () => void;
   }
 
-  let { items, label, highlight, limit = 100, columnStyles, onClick, onClose }: Props = $props();
+  let {
+    items,
+    label,
+    highlight,
+    visibleCount = 100,
+    hasMore = false,
+    loadingMore = false,
+    columnStyles,
+    onClick,
+    onClose,
+    onLoadMore,
+  }: Props = $props();
 
   function markHighlight(element: HTMLElement, highlight: string) {
     let m = new Mark(element);
     m.mark(highlight);
   }
 
+  let safeVisibleCount = $derived(visibleCount < 0 ? 0 : visibleCount);
+  let visibleItems = $derived(items.slice(0, safeVisibleCount));
+  let displayedCount = $derived(visibleItems.length);
+  let totalCount = $derived(items.length);
+
   let resultCountText = $derived(
-    items.length == 0
+    totalCount === 0
       ? "No result found."
-      : items.length == 1
-        ? `${items.length.toLocaleString()} result.`
-        : items.length >= limit
-          ? `More than ${items.length.toLocaleString()} results, showing top ${limit.toLocaleString()}.`
-          : `${items.length.toLocaleString()} results.`,
+      : totalCount === 1 && displayedCount === totalCount && !hasMore
+        ? `${totalCount.toLocaleString()} result.`
+        : displayedCount < totalCount || hasMore
+          ? `Showing ${displayedCount.toLocaleString()} of ${totalCount.toLocaleString()} results.`
+          : `${totalCount.toLocaleString()} results.`,
   );
 </script>
 
@@ -55,7 +74,7 @@
   </div>
   <hr class="border-slate-300 dark:border-slate-600" />
   <div class="flex flex-col overflow-x-hidden overflow-y-scroll">
-    {#each items as item (item)}
+    {#each visibleItems as item (item)}
       <button
         class="m-1 p-2 text-left rounded-md hover:outline outline-slate-500"
         onclick={() => {
@@ -78,5 +97,16 @@
       </button>
       <hr class="border-slate-300 dark:border-slate-600" />
     {/each}
+    {#if hasMore}
+      <button
+        class="m-3 mt-4 px-4 py-2 rounded-md border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-60 disabled:cursor-not-allowed"
+        disabled={loadingMore}
+        onclick={() => {
+          onLoadMore?.();
+        }}
+      >
+        {loadingMore ? "Loading more..." : "Load more results"}
+      </button>
+    {/if}
   </div>
 </div>

@@ -51,6 +51,7 @@
   import skinmapLogo from "../assets/atlas.png";
 
 const searchLimit = 500;
+const searchPageSize = 50;
 
 type UploadSearchFilter =
   | { column: string; type: "string" | "string[]"; values: string[] }
@@ -241,13 +242,38 @@ interface UploadSearchResultDetail {
   let searchQuery = $state("");
   let searcherStatus = $state("");
   let searchResultVisible = $state(false);
-let searchResult: {
-  label: string;
-  highlight: string;
-  items: SearchResultItem[];
-} | null = $state(null);
-let searchResultHighlight = $state<SearchResultItem | null>(null);
-let uploadFocusPoint: { x: number; y: number } | null = $state(null);
+  let searchResult: {
+    label: string;
+    highlight: string;
+    items: SearchResultItem[];
+  } | null = $state(null);
+  let searchResultHighlight = $state<SearchResultItem | null>(null);
+  let searchResultVisibleCount: number = $state(searchPageSize);
+  let searchResultLoadingMore: boolean = $state(false);
+  let searchResultHasMore: boolean = $state(false);
+  let uploadSearchDetail = $state.raw<UploadSearchResultDetail | null>(null);
+  let uploadSearchNeighborCount: number = $state(0);
+  let uploadFocusPoint: { x: number; y: number } | null = $state(null);
+
+  $effect(() => {
+    let total = searchResult?.items?.length ?? 0;
+    let hasVisibleRemainder = total > searchResultVisibleCount;
+    let canRefetch =
+      uploadSearchDetail?.refetch != null && uploadSearchNeighborCount >= (uploadSearchDetail?.topK ?? 0);
+    searchResultHasMore = total > 0 && (hasVisibleRemainder || canRefetch);
+  });
+
+  function updateSearchResultVisibleCount(totalCount: number, preserveIncrement: boolean) {
+    if (totalCount <= 0) {
+      searchResultVisibleCount = 0;
+    } else if (preserveIncrement) {
+      let nextTarget = searchResultVisibleCount + searchPageSize;
+      searchResultVisibleCount = Math.min(totalCount, nextTarget);
+    } else {
+      searchResultVisibleCount = Math.min(searchPageSize, totalCount);
+    }
+    searchResultLoadingMore = false;
+  }
 
   async function doSearch(query: any, mode: string) {
     if (searcher == null || searchModeOptions.length == 0) {
@@ -261,6 +287,8 @@ let uploadFocusPoint: { x: number; y: number } | null = $state(null);
 
     searchResultVisible = true;
     searcherStatus = "Searching...";
+    uploadSearchDetail = null;
+    searchResultLoadingMore = false;
 
     let predicate = currentPredicate();
     let searcherResult: { id: any }[] = [];
@@ -311,6 +339,8 @@ let uploadFocusPoint: { x: number; y: number } | null = $state(null);
 
     searcherStatus = "";
     searchResult = { label: label, highlight: highlight, items: result };
+    updateSearchResultVisibleCount(result.length, false);
+    uploadSearchNeighborCount = 0;
     uploadFocusPoint = null;
   }
 
@@ -513,10 +543,12 @@ async function displayNeighborResults(
       neighbors,
     );
     searchResult = { label, highlight: "", items: result };
+    updateSearchResultVisibleCount(result.length, searchResultLoadingMore);
     return result;
   } catch (error) {
     console.error("Failed to resolve neighbor results", error);
     searchResult = { label, highlight: "", items: [] };
+    updateSearchResultVisibleCount(0, false);
     return [];
   } finally {
     searcherStatus = "";
@@ -531,6 +563,9 @@ async function handleImageSearchResult(detail: UploadSearchResultDetail) {
   const refetch = payload?.refetch;
   const queryPoint = payload?.queryPoint ?? null;
   const desiredTopK = payload?.topK ?? 50;
+
+  uploadSearchNeighborCount = neighbors.length;
+  uploadSearchDetail = payload;
 
   let filteredNeighbors = neighbors;
   try {
@@ -551,6 +586,13 @@ async function handleImageSearchResult(detail: UploadSearchResultDetail) {
 
   updateUploadSearchStatus(setStatus, filteredNeighbors, filters);
   const items = await displayNeighborResults("Uploaded image neighbors", filteredNeighbors);
+  uploadSearchDetail =
+    payload != null
+      ? {
+          ...payload,
+          neighbors: filteredNeighbors,
+        }
+      : null;
   if (queryPoint != null) {
     uploadFocusPoint = queryPoint;
     await animateEmbeddingViewToPoint(undefined, queryPoint.x, queryPoint.y);
@@ -564,10 +606,49 @@ async function handleImageSearchResult(detail: UploadSearchResultDetail) {
   }
 }
 
+async function loadMoreSearchResults() {
+  if (searchResult == null) {
+    return;
+  }
+  let total = searchResult.items.length;
+  if (searchResultVisibleCount < total) {
+    searchResultVisibleCount = Math.min(total, searchResultVisibleCount + searchPageSize);
+    return;
+  }
+  if (
+    uploadSearchDetail?.refetch != null &&
+    uploadSearchNeighborCount >= (uploadSearchDetail.topK ?? 0) &&
+    !searchResultLoadingMore
+  ) {
+    searchResultLoadingMore = true;
+    try {
+      let triggered = await uploadSearchDetail.refetch();
+      if (!triggered) {
+        searchResultLoadingMore = false;
+        uploadSearchDetail = {
+          ...uploadSearchDetail,
+          refetch: undefined,
+        };
+      }
+    } catch (error) {
+      console.error("Failed to load additional upload neighbors", error);
+      searchResultLoadingMore = false;
+      uploadSearchDetail = {
+        ...uploadSearchDetail,
+        refetch: undefined,
+      };
+    }
+  }
+}
+
 function clearSearch() {
   searchResult = null;
   searchResultVisible = false;
   uploadFocusPoint = null;
+  searchResultVisibleCount = searchPageSize;
+  searchResultLoadingMore = false;
+  uploadSearchDetail = null;
+  uploadSearchNeighborCount = 0;
 }
 
   $effect.pre(() => {
@@ -1075,7 +1156,10 @@ function clearSearch() {
                   items={searchResult.items}
                   label={searchResult.label}
                   highlight={searchResult.highlight}
-                  limit={searchLimit}
+                  visibleCount={searchResultVisibleCount}
+                  hasMore={searchResultHasMore}
+                  loadingMore={searchResultLoadingMore}
+                  onLoadMore={loadMoreSearchResults}
                   onClick={async (item) => {
                     scrollTableTo(item.id);
                     searchResultHighlight = item;
