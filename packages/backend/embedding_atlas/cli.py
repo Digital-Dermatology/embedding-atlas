@@ -511,6 +511,9 @@ def main(
         labels_df = load_pandas_data(labels)
         labels_resolved = labels_df.to_dict("records")
 
+    if neighbors_column is not None and neighbors_column not in df.columns:
+        neighbors_column = None
+
     props = make_embedding_atlas_props(
         row_id=id_column,
         x=x_column,

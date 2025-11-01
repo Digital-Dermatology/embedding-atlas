@@ -250,9 +250,46 @@ export function resolveSearcher(options: {
 
   if (searcher != null && searcher.nearestNeighbors != null) {
     result.nearestNeighbors = searcher.nearestNeighbors.bind(searcher);
+  } else if (vectorNeighborsEndpoint != null) {
+    const endpoint = vectorNeighborsEndpoint;
+    result.nearestNeighbors = async (
+      id: any,
+      options: { limit?: number; predicate?: string | null; onStatus?: (status: string) => void } = {},
+    ): Promise<{ id: any; distance?: number }[]> => {
+      let limit = Math.max(1, Math.min(options.limit ?? DEFAULT_NEIGHBOR_LIMIT, DEFAULT_NEIGHBOR_LIMIT));
+      options.onStatus?.("Searching neighbors...");
+      const base = typeof window !== "undefined" ? window.location.href : "http://localhost";
+      try {
+        let url = new URL(endpoint, base);
+        url.searchParams.set("id", String(id));
+        url.searchParams.set("k", String(Math.min(limit + 1, DEFAULT_NEIGHBOR_LIMIT)));
+        let response = await fetch(url.toString());
+        if (!response.ok) {
+          throw new Error(`Failed with status ${response.status}`);
+        }
+        let payload = await response.json();
+        let neighbors: any[] = Array.isArray(payload?.neighbors) ? payload.neighbors : [];
+        return neighbors
+          .filter((neighbor) => neighbor && neighbor.id != null)
+          .map((neighbor) => ({
+            id: neighbor.id,
+            distance: typeof neighbor.distance === "number" ? neighbor.distance : undefined,
+          }))
+          .slice(0, limit);
+      } catch (error) {
+        console.warn("Failed to fetch nearest neighbors from endpoint.", error);
+        return [];
+      } finally {
+        options.onStatus?.("");
+      }
+    };
   } else if (neighborsColumn != null) {
-    // Search with pre-computed nearest neighbors.
-    result.nearestNeighbors = async (id: any): Promise<{ id: any; distance: number }[]> => {
+    result.nearestNeighbors = async (
+      id: any,
+      options: { limit?: number; predicate?: string | null; onStatus?: (status: string) => void } = {},
+    ): Promise<{ id: any; distance?: number }[]> => {
+      let limit = Math.max(1, Math.min(options.limit ?? DEFAULT_NEIGHBOR_LIMIT, DEFAULT_NEIGHBOR_LIMIT));
+      options.onStatus?.("Searching neighbors...");
       try {
         let q = SQL.Query.from(table)
           .select({ knn: SQL.column(neighborsColumn) })
@@ -272,36 +309,6 @@ export function resolveSearcher(options: {
         return r;
       } catch (error) {
         console.warn("Failed to resolve nearest neighbors from precomputed column.", error);
-        return [];
-      }
-    };
-  } else if (vectorNeighborsEndpoint != null) {
-    let endpoint = vectorNeighborsEndpoint;
-    result.nearestNeighbors = async (
-      id: any,
-      options: { limit?: number; predicate?: string | null; onStatus?: (status: string) => void } = {},
-    ): Promise<{ id: any; distance?: number }[]> => {
-      let limit = Math.max(1, Math.min(options.limit ?? DEFAULT_NEIGHBOR_LIMIT, DEFAULT_NEIGHBOR_LIMIT));
-      options.onStatus?.("Searching neighbors...");
-      try {
-        let url = new URL(endpoint, typeof window !== "undefined" ? window.location.href : "http://localhost");
-        url.searchParams.set("id", String(id));
-        url.searchParams.set("k", String(Math.min(limit + 1, DEFAULT_NEIGHBOR_LIMIT)));
-        let response = await fetch(url.toString());
-        if (!response.ok) {
-          throw new Error(`Failed with status ${response.status}`);
-        }
-        let payload = await response.json();
-        let neighbors: any[] = Array.isArray(payload?.neighbors) ? payload.neighbors : [];
-        return neighbors
-          .filter((neighbor) => neighbor && neighbor.id != null)
-          .map((neighbor) => ({
-            id: neighbor.id,
-            distance: typeof neighbor.distance === "number" ? neighbor.distance : undefined,
-          }))
-          .slice(0, limit);
-      } catch (error) {
-        console.warn("Failed to fetch nearest neighbors from endpoint.", error);
         return [];
       } finally {
         options.onStatus?.("");
