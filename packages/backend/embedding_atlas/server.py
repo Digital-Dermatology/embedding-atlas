@@ -214,7 +214,7 @@ def make_server(
         return JSONResponse({"neighbors": neighbors, "query": query_point})
 
     @app.get("/data/point-neighbors")
-    async def point_neighbors(identifier: str, k: int = 50):
+    async def point_neighbors(id: str, k: int = 50):
         if (
             upload_pipeline is None
             or vector_neighbor_column is None
@@ -228,7 +228,7 @@ def make_server(
         except (TypeError, ValueError):
             limit = max_neighbor_results
 
-        row_index, actual_identifier = _locate_row_by_identifier(identifier)
+        row_index, actual_identifier = _locate_row_by_identifier(id)
         if row_index is None:
             return JSONResponse({"error": f"Identifier '{identifier}' not found."}, status_code=404)
 
