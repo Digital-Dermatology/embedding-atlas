@@ -568,7 +568,7 @@ def main(
             }
             logger.info("Upload pipeline enabled.")
             if vector is not None and vector in df.columns:
-                vector_neighbors_endpoint = "/data/point-neighbors"
+                vector_neighbors_endpoint = "point-neighbors"
                 try:
                     max_point_neighbors = max(
                         1, int(os.environ.get("ATLAS_POINT_NEIGHBORS_K", "50"))
