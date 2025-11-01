@@ -1060,39 +1060,35 @@ function clearSearch() {
                   />
                 {/if}
               </div>
-              <div class="relative">
-                <Input
-                  type="search"
-                  placeholder="Search... (e.g., dermatitis)"
-                  className="w-full text-base shadow-md shadow-slate-300/40 dark:shadow-black/40"
-                  bind:value={searchQuery}
+              <Input
+                type="search"
+                placeholder="Search... (e.g., dermatitis)"
+                className="w-full text-base shadow-md shadow-slate-300/40 dark:shadow-black/40"
+                bind:value={searchQuery}
+              />
+            </div>
+          {/if}
+          {#if searcher && searchResultVisible}
+            <div class="flex-none rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm shadow-lg overflow-hidden h-[28rem] max-h-[65vh]">
+              {#if searchResult != null}
+                <SearchResultList
+                  items={searchResult.items}
+                  label={searchResult.label}
+                  highlight={searchResult.highlight}
+                  limit={searchLimit}
+                  onClick={async (item) => {
+                    scrollTableTo(item.id);
+                    searchResultHighlight = item;
+                    await animateEmbeddingViewToPoint(item.id, item.x, item.y);
+                  }}
+                  onClose={clearSearch}
+                  columnStyles={resolvedColumnStyles}
                 />
-                {#if searchResultVisible}
-                  <div
-                    class="absolute left-0 right-0 top-full mt-2 z-20 rounded-md border border-slate-300 dark:border-slate-600 overflow-hidden resize-y shadow-lg bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm h-[28rem] max-h-[65vh]"
-                  >
-                    {#if searchResult != null}
-                      <SearchResultList
-                        items={searchResult.items}
-                        label={searchResult.label}
-                        highlight={searchResult.highlight}
-                        limit={searchLimit}
-                        onClick={async (item) => {
-                          scrollTableTo(item.id);
-                          searchResultHighlight = item;
-                          await animateEmbeddingViewToPoint(item.id, item.x, item.y);
-                        }}
-                        onClose={clearSearch}
-                        columnStyles={resolvedColumnStyles}
-                      />
-                    {:else if searcherStatus != null}
-                      <div class="p-2">
-                        <Spinner status={searcherStatus} />
-                      </div>
-                    {/if}
-                  </div>
-                {/if}
-              </div>
+              {:else if searcherStatus != null}
+                <div class="flex h-full items-center justify-center p-4">
+                  <Spinner status={searcherStatus} />
+                </div>
+              {/if}
             </div>
           {/if}
           <div
