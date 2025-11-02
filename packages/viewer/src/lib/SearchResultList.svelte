@@ -45,16 +45,14 @@
   async function handleLoadMore(event: MouseEvent) {
     const button = event.currentTarget as HTMLButtonElement | null;
     const container = listContainer;
-    const bottomOffset =
-      container != null ? container.scrollHeight - container.scrollTop : null;
+    const previousScrollTop = container?.scrollTop ?? null;
     button?.blur();
     try {
       await onLoadMore?.();
     } finally {
       await tick();
-      if (container != null && bottomOffset != null) {
-        const nextScroll = Math.max(0, container.scrollHeight - bottomOffset);
-        container.scrollTop = nextScroll;
+      if (container != null && previousScrollTop != null) {
+        container.scrollTop = previousScrollTop;
       }
     }
   }

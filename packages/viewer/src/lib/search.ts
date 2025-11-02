@@ -262,15 +262,20 @@ export function resolveSearcher(options: {
       try {
         let url = new URL(endpoint, base);
         url.searchParams.set("id", String(id));
-        url.searchParams.set("k", String(Math.min(limit + 1, DEFAULT_NEIGHBOR_LIMIT)));
+        url.searchParams.set("k", String(Math.min(limit, DEFAULT_NEIGHBOR_LIMIT)));
         let response = await fetch(url.toString());
         if (!response.ok) {
           throw new Error(`Failed with status ${response.status}`);
         }
         let payload = await response.json();
         let neighbors: any[] = Array.isArray(payload?.neighbors) ? payload.neighbors : [];
-        return neighbors
-          .filter((neighbor) => neighbor && neighbor.id != null)
+        let filtered = neighbors.filter((neighbor) => {
+          if (!neighbor || neighbor.id == null) {
+            return false;
+          }
+          return String(neighbor.id) !== String(id);
+        });
+        return filtered
           .map((neighbor) => ({
             id: neighbor.id,
             distance: typeof neighbor.distance === "number" ? neighbor.distance : undefined,
