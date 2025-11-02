@@ -262,7 +262,8 @@ export function resolveSearcher(options: {
       try {
         let url = new URL(endpoint, base);
         url.searchParams.set("id", String(id));
-        url.searchParams.set("k", String(Math.min(limit, DEFAULT_NEIGHBOR_LIMIT)));
+        let requestLimit = Math.min(limit + 1, DEFAULT_NEIGHBOR_LIMIT);
+        url.searchParams.set("k", String(requestLimit));
         let response = await fetch(url.toString());
         if (!response.ok) {
           throw new Error(`Failed with status ${response.status}`);
@@ -275,12 +276,15 @@ export function resolveSearcher(options: {
           }
           return String(neighbor.id) !== String(id);
         });
-        return filtered
+        let moreAvailable = filtered.length >= limit && neighbors.length >= requestLimit;
+        let truncated = filtered
           .map((neighbor) => ({
             id: neighbor.id,
             distance: typeof neighbor.distance === "number" ? neighbor.distance : undefined,
           }))
           .slice(0, limit);
+        (truncated as any).__hasMore = moreAvailable;
+        return truncated;
       } catch (error) {
         console.warn("Failed to fetch nearest neighbors from endpoint.", error);
         return [];
@@ -311,7 +315,10 @@ export function resolveSearcher(options: {
             return { id: nid, distance: distances?.[i] };
           })
           .filter((x) => x.id != id && x.id != null);
-        return r;
+        let moreAvailable = r.length > limit;
+        let truncated = r.slice(0, limit);
+        (truncated as any).__hasMore = moreAvailable;
+        return truncated;
       } catch (error) {
         console.warn("Failed to resolve nearest neighbors from precomputed column.", error);
         return [];

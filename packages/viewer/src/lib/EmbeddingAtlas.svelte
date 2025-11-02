@@ -360,7 +360,8 @@ interface UploadSearchResultDetail {
     searcherStatus = "";
     searchResult = { label: label, highlight: highlight, items: result };
     searchResultFetchLimit = fetchLimit;
-    searchResultBackendHasMore = searcherResult.length >= fetchLimit && fetchLimit < searchLimit;
+    let searcherHasMore = (searcherResult as any)?.__hasMore === true;
+    searchResultBackendHasMore = (searcherHasMore || searcherResult.length >= fetchLimit) && fetchLimit < searchLimit;
     updateSearchResultVisibleCount(result.length, options?.preserveIncrement === true);
     if (options?.preserveIncrement !== true) {
       searchResultLoadingMore = false;
