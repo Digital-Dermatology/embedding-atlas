@@ -250,18 +250,13 @@ interface UploadSearchResultDetail {
   let searchResultHighlight = $state<SearchResultItem | null>(null);
   let searchResultVisibleCount: number = $state(searchPageSize);
   let searchResultLoadingMore: boolean = $state(false);
-  let searchResultHasMore: boolean = $state(false);
+  let searchResultFetchLimit: number = $state(searchPageSize);
+  let searchResultBackendHasMore: boolean = $state(false);
+  let lastSearchArgs = $state.raw<{ query: any; mode: "full-text" | "vector" | "neighbors" } | null>(null);
   let uploadSearchDetail = $state.raw<UploadSearchResultDetail | null>(null);
   let uploadSearchNeighborCount: number = $state(0);
+  let uploadSearchHasMore: boolean = $state(false);
   let uploadFocusPoint: { x: number; y: number } | null = $state(null);
-
-  $effect(() => {
-    let total = searchResult?.items?.length ?? 0;
-    let hasVisibleRemainder = total > searchResultVisibleCount;
-    let canRefetch =
-      uploadSearchDetail?.refetch != null && uploadSearchNeighborCount >= (uploadSearchDetail?.topK ?? 0);
-    searchResultHasMore = total > 0 && (hasVisibleRemainder || canRefetch);
-  });
 
   function updateSearchResultVisibleCount(totalCount: number, preserveIncrement: boolean) {
     if (totalCount <= 0) {
@@ -272,53 +267,78 @@ interface UploadSearchResultDetail {
     } else {
       searchResultVisibleCount = Math.min(searchPageSize, totalCount);
     }
-    searchResultLoadingMore = false;
   }
 
-  async function doSearch(query: any, mode: string) {
+  function shouldShowLoadMore(): boolean {
+    if (searchResult == null) {
+      return false;
+    }
+    if (searchResultLoadingMore) {
+      return true;
+    }
+    let total = searchResult.items.length;
+    if (total === 0) {
+      return false;
+    }
+    if (total > searchResultVisibleCount) {
+      return true;
+    }
+    return uploadSearchHasMore || searchResultBackendHasMore;
+  }
+
+  async function doSearch(query: any, mode: string, options?: { limit?: number; preserveIncrement?: boolean }) {
     if (searcher == null || searchModeOptions.length == 0) {
       clearSearch();
       return;
     }
 
-    if (searchModeOptions.map((x) => x.value).indexOf(searchMode) < 0) {
-      mode = searchModeOptions[0].value;
-    }
-
     searchResultVisible = true;
     searcherStatus = "Searching...";
     uploadSearchDetail = null;
-    searchResultLoadingMore = false;
+    uploadSearchHasMore = false;
+    searchResultBackendHasMore = false;
+
+    const availableModes = searchModeOptions.map((x) => x.value);
+    if (availableModes.length === 0) {
+      clearSearch();
+      return;
+    }
+    let resolvedMode: "full-text" | "vector" | "neighbors" =
+      availableModes.includes(mode as any)
+        ? (mode as "full-text" | "vector" | "neighbors")
+        : (availableModes[0] as "full-text" | "vector" | "neighbors");
 
     let predicate = currentPredicate();
     let searcherResult: { id: any }[] = [];
     let highlight: string = "";
-    let label = query.toString();
+    let label = query != null ? query.toString() : "";
+    let effectiveQuery = query;
+    const fetchLimit = Math.min(searchLimit, options?.limit ?? searchPageSize);
 
-    if (mode == "full-text" && searcher.fullTextSearch != null) {
-      query = query.trim();
-      searcherResult = await searcher.fullTextSearch(query, {
-        limit: searchLimit,
+    if (resolvedMode == "full-text" && searcher.fullTextSearch != null) {
+      effectiveQuery = String(query).trim();
+      searcherResult = await searcher.fullTextSearch(effectiveQuery, {
+        limit: fetchLimit,
         predicate: predicate,
         onStatus: (status: string) => {
           searcherStatus = status;
         },
       });
-      highlight = query;
-    } else if (mode == "vector" && searcher.vectorSearch != null) {
-      query = query.trim();
-      searcherResult = await searcher.vectorSearch(query, {
-        limit: searchLimit,
+      highlight = effectiveQuery;
+    } else if (resolvedMode == "vector" && searcher.vectorSearch != null) {
+      effectiveQuery = String(query).trim();
+      searcherResult = await searcher.vectorSearch(effectiveQuery, {
+        limit: fetchLimit,
         predicate: predicate,
         onStatus: (status: string) => {
           searcherStatus = status;
         },
       });
-      highlight = query;
-    } else if (mode == "neighbors" && searcher.nearestNeighbors != null) {
-      label = "Neighbors of #" + query.toString();
-      searcherResult = await searcher.nearestNeighbors(query, {
-        limit: searchLimit,
+      highlight = effectiveQuery;
+    } else if (resolvedMode == "neighbors" && searcher.nearestNeighbors != null) {
+      label = "Neighbors of #" + effectiveQuery.toString();
+      searcherResult = await searcher.nearestNeighbors(effectiveQuery, {
+        limit: fetchLimit,
         predicate: predicate,
         onStatus: (status: string) => {
           searcherStatus = status;
@@ -339,8 +359,14 @@ interface UploadSearchResultDetail {
 
     searcherStatus = "";
     searchResult = { label: label, highlight: highlight, items: result };
-    updateSearchResultVisibleCount(result.length, false);
+    searchResultFetchLimit = fetchLimit;
+    searchResultBackendHasMore = searcherResult.length >= fetchLimit && fetchLimit < searchLimit;
+    updateSearchResultVisibleCount(result.length, options?.preserveIncrement === true);
+    if (options?.preserveIncrement !== true) {
+      searchResultLoadingMore = false;
+    }
     uploadSearchNeighborCount = 0;
+    lastSearchArgs = { query: effectiveQuery, mode: resolvedMode as "full-text" | "vector" | "neighbors" };
     uploadFocusPoint = null;
   }
 
@@ -564,8 +590,12 @@ async function handleImageSearchResult(detail: UploadSearchResultDetail) {
   const queryPoint = payload?.queryPoint ?? null;
   const desiredTopK = payload?.topK ?? 50;
 
+  searchResultBackendHasMore = false;
+  lastSearchArgs = null;
+  searchResultFetchLimit = searchPageSize;
   uploadSearchNeighborCount = neighbors.length;
   uploadSearchDetail = payload;
+  uploadSearchHasMore = payload?.refetch != null && neighbors.length >= (payload?.topK ?? 0);
 
   let filteredNeighbors = neighbors;
   try {
@@ -593,6 +623,8 @@ async function handleImageSearchResult(detail: UploadSearchResultDetail) {
           neighbors: filteredNeighbors,
         }
       : null;
+  uploadSearchHasMore =
+    uploadSearchDetail?.refetch != null && filteredNeighbors.length >= (uploadSearchDetail?.topK ?? 0);
   if (queryPoint != null) {
     uploadFocusPoint = queryPoint;
     await animateEmbeddingViewToPoint(undefined, queryPoint.x, queryPoint.y);
@@ -604,10 +636,11 @@ async function handleImageSearchResult(detail: UploadSearchResultDetail) {
       uploadFocusPoint = null;
     }
   }
+  searchResultLoadingMore = false;
 }
 
 async function loadMoreSearchResults() {
-  if (searchResult == null) {
+  if (searchResult == null || searchResultLoadingMore) {
     return;
   }
   let total = searchResult.items.length;
@@ -615,28 +648,46 @@ async function loadMoreSearchResults() {
     searchResultVisibleCount = Math.min(total, searchResultVisibleCount + searchPageSize);
     return;
   }
-  if (
-    uploadSearchDetail?.refetch != null &&
-    uploadSearchNeighborCount >= (uploadSearchDetail.topK ?? 0) &&
-    !searchResultLoadingMore
-  ) {
+  if (uploadSearchHasMore && uploadSearchDetail?.refetch != null) {
     searchResultLoadingMore = true;
     try {
       let triggered = await uploadSearchDetail.refetch();
       if (!triggered) {
-        searchResultLoadingMore = false;
         uploadSearchDetail = {
           ...uploadSearchDetail,
           refetch: undefined,
         };
+        uploadSearchHasMore = false;
       }
     } catch (error) {
       console.error("Failed to load additional upload neighbors", error);
-      searchResultLoadingMore = false;
       uploadSearchDetail = {
         ...uploadSearchDetail,
         refetch: undefined,
       };
+      uploadSearchHasMore = false;
+    } finally {
+      if (!uploadSearchHasMore) {
+        searchResultLoadingMore = false;
+      }
+    }
+    return;
+  }
+  if (searchResultBackendHasMore && lastSearchArgs != null) {
+    let nextLimit = Math.min(searchLimit, searchResultFetchLimit + searchPageSize);
+    if (nextLimit <= searchResultFetchLimit) {
+      searchResultBackendHasMore = false;
+      return;
+    }
+    searchResultLoadingMore = true;
+    try {
+      await doSearch(lastSearchArgs.query, lastSearchArgs.mode, { limit: nextLimit, preserveIncrement: true });
+    } catch (error) {
+      console.error("Failed to load additional search results", error);
+      searchResultBackendHasMore = false;
+      searcherStatus = "Additional neighbors are unavailable.";
+    } finally {
+      searchResultLoadingMore = false;
     }
   }
 }
@@ -647,8 +698,12 @@ function clearSearch() {
   uploadFocusPoint = null;
   searchResultVisibleCount = searchPageSize;
   searchResultLoadingMore = false;
+  searchResultFetchLimit = searchPageSize;
+  searchResultBackendHasMore = false;
+  lastSearchArgs = null;
   uploadSearchDetail = null;
   uploadSearchNeighborCount = 0;
+  uploadSearchHasMore = false;
 }
 
   $effect.pre(() => {
@@ -1157,7 +1212,7 @@ function clearSearch() {
                   label={searchResult.label}
                   highlight={searchResult.highlight}
                   visibleCount={searchResultVisibleCount}
-                  hasMore={searchResultHasMore}
+                  hasMore={shouldShowLoadMore()}
                   loadingMore={searchResultLoadingMore}
                   onLoadMore={loadMoreSearchResults}
                   onClick={async (item) => {

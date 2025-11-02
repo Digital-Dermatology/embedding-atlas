@@ -1,6 +1,7 @@
 <!-- Copyright (c) 2025 Apple Inc. Licensed under MIT License. -->
 <script lang="ts">
   import Mark from "mark.js";
+  import { tick } from "svelte";
 
   import TooltipContent from "./TooltipContent.svelte";
 
@@ -39,6 +40,25 @@
     m.mark(highlight);
   }
 
+  let listContainer: HTMLElement | null = null;
+
+  async function handleLoadMore(event: MouseEvent) {
+    const button = event.currentTarget as HTMLButtonElement | null;
+    const container = listContainer;
+    const bottomOffset =
+      container != null ? container.scrollHeight - container.scrollTop : null;
+    button?.blur();
+    try {
+      await onLoadMore?.();
+    } finally {
+      await tick();
+      if (container != null && bottomOffset != null) {
+        const nextScroll = Math.max(0, container.scrollHeight - bottomOffset);
+        container.scrollTop = nextScroll;
+      }
+    }
+  }
+
   let safeVisibleCount = $derived(visibleCount < 0 ? 0 : visibleCount);
   let visibleItems = $derived(items.slice(0, safeVisibleCount));
   let displayedCount = $derived(visibleItems.length);
@@ -73,8 +93,8 @@
     </div>
   </div>
   <hr class="border-slate-300 dark:border-slate-600" />
-  <div class="flex flex-col overflow-x-hidden overflow-y-scroll">
-    {#each visibleItems as item (item)}
+  <div class="flex flex-col overflow-x-hidden overflow-y-scroll" bind:this={listContainer}>
+    {#each visibleItems as item (item.id)}
       <button
         class="m-1 p-2 text-left rounded-md hover:outline outline-slate-500"
         onclick={() => {
@@ -99,11 +119,9 @@
     {/each}
     {#if hasMore}
       <button
-        class="m-3 mt-4 px-4 py-2 rounded-md border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-60 disabled:cursor-not-allowed"
+        class="m-3 mt-4 px-4 py-2 rounded-md border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none"
         disabled={loadingMore}
-        onclick={() => {
-          onLoadMore?.();
-        }}
+        onclick={handleLoadMore}
       >
         {loadingMore ? "Loading more..." : "Load more results"}
       </button>
