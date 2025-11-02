@@ -144,10 +144,18 @@ interface UploadSearchResultDetail {
   // View mode
   let showEmbedding: boolean = $state(data.projection != null);
   let showTable: boolean = $state(!(data.projection != null));
-  let showSidebar: boolean = $state(true);
+  let showNNPanel: boolean = $state(true);
+  let showWidgetPanel: boolean = $state(false);
 
   let tableHeight: number = $state(320);
-  let panelWidth: number = $state(400);
+  let nnPanelWidth: number = $state(400);
+  let widgetPanelWidth: number = $state(360);
+
+  type SidePanelKind = "nn" | "widgets" | null;
+  let showMainView = $derived(showEmbedding || showTable);
+  let anyPanelVisible = $derived(showNNPanel || showWidgetPanel);
+  let firstPanel = $derived<SidePanelKind>(showNNPanel ? "nn" : showWidgetPanel ? "widgets" : null);
+  let widgetFullWidth = $derived(!showEmbedding && !showTable && !showNNPanel);
 
   const tableInfo = new TableInfo(coordinator, data.table);
 
@@ -1115,7 +1123,11 @@ function clearSearch() {
     }
     load("showEmbedding", (x) => (showEmbedding = x));
     load("showTable", (x) => (showTable = x));
-    load("showSidebar", (x) => (showSidebar = x));
+    load("showNNPanel", (x) => (showNNPanel = x));
+    load("showWidgetPanel", (x) => (showWidgetPanel = x));
+    if (state.view && "showSidebar" in state.view && !("showNNPanel" in state.view)) {
+      showNNPanel = (state.view as any).showSidebar;
+    }
     load("columnStyles", (x) => (columnStyles = x));
     load("selectedCategoryColumn", (x) => (selectedCategoryColumn = x));
     load("selectedLabelColumn", (x) => (selectedLabelColumn = x));
@@ -1140,7 +1152,9 @@ function clearSearch() {
       view: {
         showEmbedding: showEmbedding,
         showTable: showTable,
-        showSidebar: showSidebar,
+        showNNPanel: showNNPanel,
+        showWidgetPanel: showWidgetPanel,
+        showSidebar: showNNPanel,
         columnStyles: columnStyles,
         selectedCategoryColumn: selectedCategoryColumn,
         selectedLabelColumn: selectedLabelColumn,
@@ -1326,7 +1340,8 @@ function clearSearch() {
           <ToggleButton icon={IconEmbeddingView} title="Show / hide embedding" bind:checked={showEmbedding} />
         {/if}
         <ToggleButton icon={IconTable} title="Show / hide table" bind:checked={showTable} />
-        <ToggleButton icon={IconMenu} title="Show / hide sidebar" bind:checked={showSidebar} />
+        <ToggleButton icon={IconMenu} title="Show / hide NN tools" bind:checked={showNNPanel} />
+        <ToggleButton icon={IconSettings} title="Show / hide widgets" bind:checked={showWidgetPanel} />
       </div>
     </div>
     </div>
@@ -1424,124 +1439,154 @@ function clearSearch() {
           {/if}
         </div>
       {/if}
-      {#if showSidebar}
-        {@const fullWidth = !(showTable || showEmbedding)}
-        {#if !fullWidth}
+      {#if anyPanelVisible}
+        {#if firstPanel != null && showMainView}
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div
             class="w-2 -ml-2 cursor-col-resize"
             onmousedown={(e) => {
-              let w0 = panelWidth;
-              startDrag(e, (dx, _) => (panelWidth = Math.max(300, w0 - dx)));
+              let w0 = firstPanel === "nn" ? nnPanelWidth : widgetPanelWidth;
+              startDrag(e, (dx, _) => {
+                if (firstPanel === "nn") {
+                  nnPanelWidth = Math.max(300, w0 - dx);
+                } else {
+                  widgetPanelWidth = Math.max(300, w0 - dx);
+                }
+              });
             }}
           ></div>
         {/if}
         <div
-          class="flex flex-col mr-2 mb-2 gap-2 dark:bg-slate-800"
-          style:width={fullWidth ? null : `${panelWidth}px`}
-          class:ml-2={fullWidth}
-          class:flex-none={!fullWidth}
-          class:flex-1={fullWidth}
-          transition:slide={{ axis: "x", duration: animationDuration }}
+          class="flex flex-row gap-2 mr-2 mb-2 h-full"
+          class:ml-2={!showMainView}
         >
-          {#if uploadSearchConfig}
-            <ImageSearchWidget
-              disabled={!uploadSearchAvailable}
-              endpoint={uploadSearchEndpoint}
-              coordinator={coordinator}
-              table={data.table}
-              columns={columns}
-              on:result={handleImageSearchResult}
-            />
-          {/if}
-          {#if searcher}
-            <div class="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm flex flex-col gap-3 p-3">
-              <div class="flex items-center justify-between gap-2">
-                <div class="text-sm font-semibold text-slate-600 dark:text-slate-300 select-none">Search</div>
-                {#if searchModeOptions.filter((x) => x.value != "neighbors").length > 1}
-                  <Select
-                    label="Mode"
-                    options={searchModeOptions.filter((x) => x.value != "neighbors")}
-                    value={searchMode}
-                    onChange={(v) => (searchMode = v)}
-                    class="min-w-[8rem]"
+          {#if showNNPanel}
+            <div
+              class="flex flex-col bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm overflow-hidden h-full"
+              style:width={showMainView ? `${nnPanelWidth}px` : null}
+              class:flex-1={!showMainView}
+              transition:slide={{ axis: "x", duration: animationDuration }}
+            >
+              <div class="flex-1 min-h-0 flex flex-col gap-3 p-3 overflow-y-auto">
+                {#if uploadSearchConfig}
+                  <ImageSearchWidget
+                    disabled={!uploadSearchAvailable}
+                    endpoint={uploadSearchEndpoint}
+                    coordinator={coordinator}
+                    table={data.table}
+                    columns={columns}
+                    on:result={handleImageSearchResult}
                   />
                 {/if}
-              </div>
-              <Input
-                type="search"
-                placeholder="Search... (e.g., dermatitis)"
-                className="w-full text-base shadow-md shadow-slate-300/40 dark:shadow-black/40"
-                bind:value={searchQuery}
-              />
-            </div>
-          {/if}
-          {#if searcher && searchResultVisible}
-            <div class="flex-none rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm shadow-lg overflow-hidden h-[28rem] max-h-[65vh]">
-              {#if searchResult != null}
-                <div class="flex items-center justify-between px-3 py-2 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-300 dark:border-slate-600">
-                  <label class="flex items-center gap-2 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      class="h-3.5 w-3.5 rounded border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-200"
-                      checked={groupNeighborsByCondition}
-                      disabled={searchResult.items.length === 0}
-                      onchange={(event) => toggleGroupByCondition((event.currentTarget as HTMLInputElement).checked)}
+                {#if searcher}
+                  <div class="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm flex flex-col gap-3 p-3">
+                    <div class="flex items-center justify-between gap-2">
+                      <div class="text-sm font-semibold text-slate-600 dark:text-slate-300 select-none">Search</div>
+                      {#if searchModeOptions.filter((x) => x.value != "neighbors").length > 1}
+                        <Select
+                          label="Mode"
+                          options={searchModeOptions.filter((x) => x.value != "neighbors")}
+                          value={searchMode}
+                          onChange={(v) => (searchMode = v)}
+                          class="min-w-[8rem]"
+                        />
+                      {/if}
+                    </div>
+                    <Input
+                      type="search"
+                      placeholder="Search... (e.g., dermatitis)"
+                      className="w-full text-base shadow-md shadow-slate-300/40 dark:shadow-black/40"
+                      bind:value={searchQuery}
                     />
-                    <span>Group by condition</span>
-                  </label>
-                  {#if groupNeighborsByCondition && activeNeighborGroup != null}
-                    <button
-                      class="text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-medium"
-                      onclick={clearNeighborGroupSelection}
-                    >
-                      Back to groups
-                    </button>
-                  {/if}
-                </div>
-                <SearchResultList
-                  items={searchResultDisplayItems}
-                  label={searchResultDisplayLabel}
-                  highlight={searchResult.highlight}
-                  visibleCount={searchResultVisibleCount}
-                  hasMore={shouldShowLoadMore()}
-                  loadingMore={searchResultLoadingMore}
-                  onLoadMore={loadMoreSearchResults}
-                  onClick={async (item) => {
-                    scrollTableTo(item.id);
-                    searchResultHighlight = item;
-                    await animateEmbeddingViewToPoint(item.id, item.x, item.y);
-                  }}
-                  onClose={clearSearch}
-                  columnStyles={resolvedColumnStyles}
-                  groupMode={groupNeighborsByCondition}
-                  groups={neighborGroupSummaries}
-                  groupColors={neighborGroupColors}
-                  activeGroupKey={activeNeighborGroup}
-                  activeGroupLabel={activeNeighborGroupLabel}
-                  onGroupSelect={selectNeighborGroup}
-                  onGroupBack={clearNeighborGroupSelection}
-                />
-              {:else if searcherStatus != null}
-                <div class="flex h-full items-center justify-center p-4">
-                  <Spinner status={searcherStatus} />
-                </div>
-              {/if}
+                  </div>
+                {/if}
+                {#if searcher && searchResultVisible}
+                  <div class="flex-1 min-h-[12rem] rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm shadow-lg overflow-hidden flex flex-col">
+                    {#if searchResult != null}
+                      <div class="flex items-center justify-between px-3 py-2 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-300 dark:border-slate-600">
+                        <label class="flex items-center gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            class="h-3.5 w-3.5 rounded border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-200"
+                            checked={groupNeighborsByCondition}
+                            disabled={searchResult.items.length === 0}
+                            onchange={(event) => toggleGroupByCondition((event.currentTarget as HTMLInputElement).checked)}
+                          />
+                          <span>Group by condition</span>
+                        </label>
+                        {#if groupNeighborsByCondition && activeNeighborGroup != null}
+                          <button
+                            class="text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-medium"
+                            onclick={clearNeighborGroupSelection}
+                          >
+                            Back to groups
+                          </button>
+                        {/if}
+                      </div>
+                      <div class="flex-1 min-h-0">
+                        <SearchResultList
+                          items={searchResultDisplayItems}
+                          label={searchResultDisplayLabel}
+                          highlight={searchResult.highlight}
+                          visibleCount={searchResultVisibleCount}
+                          hasMore={shouldShowLoadMore()}
+                          loadingMore={searchResultLoadingMore}
+                          onLoadMore={loadMoreSearchResults}
+                          onClick={async (item) => {
+                            scrollTableTo(item.id);
+                            searchResultHighlight = item;
+                            await animateEmbeddingViewToPoint(item.id, item.x, item.y);
+                          }}
+                          onClose={clearSearch}
+                          columnStyles={resolvedColumnStyles}
+                          groupMode={groupNeighborsByCondition}
+                          groups={neighborGroupSummaries}
+                          groupColors={neighborGroupColors}
+                          activeGroupKey={activeNeighborGroup}
+                          activeGroupLabel={activeNeighborGroupLabel}
+                          onGroupSelect={selectNeighborGroup}
+                          onGroupBack={clearNeighborGroupSelection}
+                        />
+                      </div>
+                    {:else if searcherStatus != null}
+                      <div class="flex-1 flex items-center justify-center p-4">
+                        <Spinner status={searcherStatus} />
+                      </div>
+                    {/if}
+                  </div>
+                {/if}
+              </div>
             </div>
           {/if}
-          <div
-            class="flex-1 w-full rounded-md overflow-x-hidden overflow-y-scroll"
-            style:width={fullWidth ? null : `${panelWidth}px`}
-          >
-            <PlotList
-              bind:plots={plots}
-              table={data.table}
-              columns={columns}
-              filter={crossFilter}
-              layout={fullWidth ? "full" : "sidebar"}
-              stateStores={plotStateStores}
-            />
-          </div>
+          {#if showWidgetPanel}
+            {#if showNNPanel && showMainView}
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <div
+                class="w-2 cursor-col-resize"
+                onmousedown={(e) => {
+                  let w0 = widgetPanelWidth;
+                  startDrag(e, (dx, _) => (widgetPanelWidth = Math.max(280, w0 - dx)));
+                }}
+              ></div>
+            {/if}
+            <div
+              class="flex flex-col bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm overflow-hidden h-full"
+              style:width={showMainView ? `${widgetPanelWidth}px` : null}
+              class:flex-1={!showMainView}
+              transition:slide={{ axis: "x", duration: animationDuration }}
+            >
+              <div class="flex-1 min-h-0 overflow-y-auto p-3">
+                <PlotList
+                  bind:plots={plots}
+                  table={data.table}
+                  columns={columns}
+                  filter={crossFilter}
+                  layout={widgetFullWidth ? "full" : "sidebar"}
+                  stateStores={plotStateStores}
+                />
+              </div>
+            </div>
+          {/if}
         </div>
       {/if}
     </div>
