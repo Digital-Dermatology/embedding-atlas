@@ -8,9 +8,18 @@
     highlightItem?: SearchResultItem | null;
     focusPoint?: { x: number; y: number } | null;
     proxy: OverlayProxy;
+    groupMode?: boolean;
+    groupColors?: Record<string, string> | null;
   }
 
-  let { items, highlightItem, focusPoint, proxy }: Props = $props();
+  let {
+    items,
+    highlightItem,
+    focusPoint,
+    proxy,
+    groupMode = false,
+    groupColors = null,
+  }: Props = $props();
 
   function starPoints(cx: number, cy: number, outerRadius: number, innerRadius: number): string {
     let points: string[] = [];
@@ -23,6 +32,20 @@
     }
     return points.join(" ");
   }
+
+  const DEFAULT_FILL = "#f97316";
+  const DEFAULT_STROKE = "#c2410c";
+
+  function resolveItemColor(item: SearchResultItem): { fill: string; stroke: string } {
+    if (groupMode && item?.groupKey != null && groupColors != null) {
+      const fillColor = groupColors[item.groupKey];
+      if (typeof fillColor === "string" && fillColor.trim() !== "") {
+        const sanitized = fillColor.trim();
+        return { fill: sanitized, stroke: sanitized };
+      }
+    }
+    return { fill: DEFAULT_FILL, stroke: DEFAULT_STROKE };
+  }
 </script>
 
 <svg width={proxy.width} height={proxy.height}>
@@ -31,13 +54,14 @@
       {#if item.x != null && item.y != null}
         {@const loc = proxy.location(item.x, item.y)}
         {@const isHighlight = item.id == highlightItem?.id}
+        {@const colorSpec = resolveItemColor(item)}
         {#if isHighlight}
-          <line x1={loc.x - 20} x2={loc.x - 10} y1={loc.y} y2={loc.y} class="stroke-orange-500" />
-          <line x1={loc.x + 20} x2={loc.x + 10} y1={loc.y} y2={loc.y} class="stroke-orange-500" />
-          <line x1={loc.x} x2={loc.x} y1={loc.y - 20} y2={loc.y - 10} class="stroke-orange-500" />
-          <line x1={loc.x} x2={loc.x} y1={loc.y + 20} y2={loc.y + 10} class="stroke-orange-500" />
+          <line x1={loc.x - 20} x2={loc.x - 10} y1={loc.y} y2={loc.y} stroke={colorSpec.stroke} stroke-width="2" />
+          <line x1={loc.x + 20} x2={loc.x + 10} y1={loc.y} y2={loc.y} stroke={colorSpec.stroke} stroke-width="2" />
+          <line x1={loc.x} x2={loc.x} y1={loc.y - 20} y2={loc.y - 10} stroke={colorSpec.stroke} stroke-width="2" />
+          <line x1={loc.x} x2={loc.x} y1={loc.y + 20} y2={loc.y + 10} stroke={colorSpec.stroke} stroke-width="2" />
         {/if}
-        <circle cx={loc.x} cy={loc.y} r={4} class="fill-orange-500 stroke-orange-700 stroke-2" />
+        <circle cx={loc.x} cy={loc.y} r={4} fill={colorSpec.fill} stroke={colorSpec.stroke} stroke-width={isHighlight ? 2.5 : 2} opacity={isHighlight ? 1 : 0.92} />
       {/if}
     {/each}
     {#if focusPoint && Number.isFinite(focusPoint.x) && Number.isFinite(focusPoint.y)}

@@ -9,6 +9,15 @@
   import type { ColumnStyle } from "./renderers/index.js";
   import type { SearchResultItem } from "./search.js";
 
+  interface NeighborGroupEntry {
+    key: string;
+    label: string;
+    representative: SearchResultItem;
+    items: SearchResultItem[];
+    count: number;
+    distance: number;
+  }
+
   interface Props {
     items: SearchResultItem[];
     label: string;
@@ -20,6 +29,13 @@
     onClick?: (item: SearchResultItem) => void;
     onClose?: () => void;
     onLoadMore?: () => void;
+    groupMode?: boolean;
+    groups?: NeighborGroupEntry[] | null;
+    groupColors?: Record<string, string> | null;
+    activeGroupKey?: string | null;
+    activeGroupLabel?: string | null;
+    onGroupSelect?: (key: string) => void;
+    onGroupBack?: () => void;
   }
 
   let {
@@ -33,6 +49,13 @@
     onClick,
     onClose,
     onLoadMore,
+    groupMode = false,
+    groups = null,
+    groupColors = null,
+    activeGroupKey = null,
+    activeGroupLabel = null,
+    onGroupSelect,
+    onGroupBack,
   }: Props = $props();
 
   function markHighlight(element: HTMLElement, highlight: string) {
@@ -61,25 +84,50 @@
   let visibleItems = $derived(items.slice(0, safeVisibleCount));
   let displayedCount = $derived(visibleItems.length);
   let totalCount = $derived(items.length);
+  let safeGroups = $derived(groups ?? []);
+  let showGroupSummary = $derived(groupMode && activeGroupKey == null && safeGroups.length > 0);
+  let groupVisibleCount = $derived(
+    showGroupSummary ? Math.min(safeVisibleCount === 0 ? safeGroups.length : safeVisibleCount, safeGroups.length) : 0,
+  );
+  let visibleGroups = $derived(showGroupSummary ? safeGroups.slice(0, groupVisibleCount) : []);
+  let totalGroupCount = $derived(showGroupSummary ? safeGroups.length : 0);
 
   let resultCountText = $derived(
-    totalCount === 0
-      ? "No result found."
-      : totalCount === 1 && displayedCount === totalCount && !hasMore
-        ? `${totalCount.toLocaleString()} result.`
+    showGroupSummary
+      ? totalGroupCount === 0
+        ? "No matching conditions."
+        : groupVisibleCount < totalGroupCount || hasMore
+          ? `Showing ${groupVisibleCount.toLocaleString()} of ${totalGroupCount.toLocaleString()} condition groups.`
+          : `${totalGroupCount.toLocaleString()} condition group${totalGroupCount === 1 ? "" : "s"}.`
+      : totalCount === 0
+        ? groupMode && activeGroupKey != null
+          ? "No samples in this condition."
+          : "No result found."
         : displayedCount < totalCount || hasMore
-          ? `Showing ${displayedCount.toLocaleString()} of ${totalCount.toLocaleString()} results.`
-          : `${totalCount.toLocaleString()} results.`,
+          ? `Showing ${displayedCount.toLocaleString()} of ${totalCount.toLocaleString()} results${groupMode && activeGroupKey != null ? ` for ${activeGroupLabel ?? activeGroupKey}.` : "."}`
+          : `${totalCount.toLocaleString()} result${totalCount === 1 ? "" : "s"}${groupMode && activeGroupKey != null ? ` for ${activeGroupLabel ?? activeGroupKey}.` : "."}`,
   );
 </script>
 
 <div class="flex flex-col w-full h-full">
-  <div class="ml-3 mr-2 my-1 flex items-center text-slate-400 dark:text-slate-500 items-start">
-    <div class="flex-1">
+  <div class="ml-3 mr-2 my-1 flex items-start text-slate-400 dark:text-slate-500">
+    <div class="flex-1 pr-2">
       <div>{label}</div>
-      <div>{resultCountText}</div>
+      <div class="flex items-center gap-2">
+        <span>{resultCountText}</span>
+        {#if groupMode && activeGroupKey != null && typeof onGroupBack === "function"}
+          <button
+            class="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-medium"
+            onclick={() => {
+              onGroupBack?.();
+            }}
+          >
+            Back to groups
+          </button>
+        {/if}
+      </div>
     </div>
-    <div class="flex-none mt-1">
+    <div class="flex-none mt-0.5">
       <button
         class="block hover:text-slate-500 dark:hover:text-slate-400"
         onclick={() => {
@@ -92,29 +140,65 @@
   </div>
   <hr class="border-slate-300 dark:border-slate-600" />
   <div class="flex flex-col overflow-x-hidden overflow-y-scroll" bind:this={listContainer}>
-    {#each visibleItems as item (item.id)}
-      <button
-        class="m-1 p-2 text-left rounded-md hover:outline outline-slate-500"
-        onclick={() => {
-          onClick?.(item);
-        }}
-      >
-        {#if item.distance != null}
-          <div class="flex pb-1 text-sm">
-            <span class="px-2 flex gap-2 bg-slate-200 text-slate-500 dark:bg-slate-600 dark:text-slate-300 rounded-md">
-              <div class="text-slate-400 dark:text-slate-400 font-medium">Distance</div>
-              <div class="text-ellipsis whitespace-nowrap overflow-hidden max-w-72">
-                {item.distance.toFixed(5)}
+    {#if showGroupSummary}
+      {#if visibleGroups.length === 0}
+        <div class="px-3 py-4 text-slate-400 dark:text-slate-500 text-sm select-none">No conditions available.</div>
+      {:else}
+        {#each visibleGroups as group (group.key)}
+          <button
+            class="m-1 p-2 text-left rounded-md hover:outline outline-slate-500"
+            onclick={() => {
+              onGroupSelect?.(group.key);
+            }}
+          >
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex items-center gap-2">
+                {#if groupColors?.[group.key]}
+                  <span
+                    class="h-2.5 w-2.5 rounded-full border border-slate-200 dark:border-slate-700"
+                    style={`background:${groupColors[group.key]};`}
+                  ></span>
+                {/if}
+                <span class="font-medium text-slate-700 dark:text-slate-200">{group.label}</span>
               </div>
-            </span>
+              <span class="text-xs text-slate-400 dark:text-slate-500">
+                {group.count.toLocaleString()} sample{group.count === 1 ? "" : "s"}
+              </span>
+            </div>
+            {#if Number.isFinite(group.distance)}
+              <div class="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                Nearest distance: {group.distance.toFixed(5)}
+              </div>
+            {/if}
+          </button>
+          <hr class="border-slate-300 dark:border-slate-600" />
+        {/each}
+      {/if}
+    {:else}
+      {#each visibleItems as item (item.id)}
+        <button
+          class="m-1 p-2 text-left rounded-md hover:outline outline-slate-500"
+          onclick={() => {
+            onClick?.(item);
+          }}
+        >
+          {#if item.distance != null && Number.isFinite(item.distance)}
+            <div class="flex pb-1 text-sm">
+              <span class="px-2 flex gap-2 bg-slate-200 text-slate-500 dark:bg-slate-600 dark:text-slate-300 rounded-md">
+                <div class="text-slate-400 dark:text-slate-400 font-medium">Distance</div>
+                <div class="text-ellipsis whitespace-nowrap overflow-hidden max-w-72">
+                  {item.distance.toFixed(5)}
+                </div>
+              </span>
+            </div>
+          {/if}
+          <div class="overflow-hidden text-ellipsis line-clamp-4 leading-5" use:markHighlight={highlight}>
+            <TooltipContent values={item.fields} columnStyles={columnStyles ?? {}} />
           </div>
-        {/if}
-        <div class="overflow-hidden text-ellipsis line-clamp-4 leading-5" use:markHighlight={highlight}>
-          <TooltipContent values={item.fields} columnStyles={columnStyles ?? {}} />
-        </div>
-      </button>
-      <hr class="border-slate-300 dark:border-slate-600" />
-    {/each}
+        </button>
+        <hr class="border-slate-300 dark:border-slate-600" />
+      {/each}
+    {/if}
     {#if hasMore}
       <button
         class="m-3 mt-4 px-4 py-2 rounded-md border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600 disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none"

@@ -40,4 +40,6 @@ export const CustomOverlay = createCustomComponentClass<{
   items: SearchResultItem[];
   highlightItem?: SearchResultItem | null;
   focusPoint?: { x: number; y: number } | null;
+  groupMode?: boolean;
+  groupColors?: Record<string, string> | null;
 }>(SearchResultOverlay);

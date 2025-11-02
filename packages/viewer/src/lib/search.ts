@@ -133,6 +133,7 @@ export interface SearchResultItem {
   x?: number;
   y?: number;
   text?: string;
+  groupKey?: string | null;
 }
 
 export async function querySearchResultItems(

@@ -42,6 +42,7 @@
   import { makeDarkModeStore } from "./dark_mode_store.js";
   import { predicateToString, TableInfo, type ColumnDesc, type EmbeddingLegend } from "./database_utils.js";
   import { setImageAssets } from "./image_utils.js";
+  import { defaultOrdinalColors } from "./colors.js";
   import type { Plot } from "./plots/plot.js";
   import { PlotStateStoreManager } from "./plots/plot_state_store.js";
   import { getRenderer, type ColumnStyle } from "./renderers/index.js";
@@ -258,6 +259,168 @@ interface UploadSearchResultDetail {
   let uploadSearchHasMore: boolean = $state(false);
   let uploadFocusPoint: { x: number; y: number } | null = $state(null);
 
+  const NEIGHBOR_GROUP_COLUMN = "condition";
+  const UNKNOWN_CONDITION_LABEL = "Unknown condition";
+
+  type NeighborGroupSummary = {
+    key: string;
+    label: string;
+    representative: SearchResultItem;
+    items: SearchResultItem[];
+    count: number;
+    distance: number;
+  };
+
+  function normalizeGroupLabel(value: any): string {
+    if (value == null) {
+      return UNKNOWN_CONDITION_LABEL;
+    }
+    const text = typeof value === "string" ? value : String(value);
+    const trimmed = text.trim();
+    return trimmed === "" ? UNKNOWN_CONDITION_LABEL : trimmed;
+  }
+
+  function computeNeighborGroupKey(item: SearchResultItem): string {
+    if (typeof item.groupKey === "string") {
+      const trimmed = item.groupKey.trim();
+      if (trimmed !== "") {
+        return trimmed;
+      }
+    }
+    return normalizeGroupLabel(item.fields?.[NEIGHBOR_GROUP_COLUMN]);
+  }
+
+  function augmentSearchResultsWithGroup(items: SearchResultItem[]): SearchResultItem[] {
+    return items.map((item) => {
+      const key = computeNeighborGroupKey(item);
+      if (item.groupKey === key) {
+        return item;
+      }
+      return {
+        ...item,
+        groupKey: key,
+      };
+    });
+  }
+
+  function normalizedDistance(distance?: number): number {
+    return typeof distance === "number" && Number.isFinite(distance) ? distance : Number.POSITIVE_INFINITY;
+  }
+
+  let groupNeighborsByCondition: boolean = $state(false);
+  let activeNeighborGroup: string | null = $state(null);
+
+  function buildNeighborGroupSummaries(): NeighborGroupSummary[] {
+    if (searchResult?.items == null || searchResult.items.length === 0) {
+      return [];
+    }
+    const groups = new Map<string, NeighborGroupSummary>();
+    for (const item of searchResult.items) {
+      const key = computeNeighborGroupKey(item);
+      const distance = normalizedDistance(item.distance);
+      const existing = groups.get(key);
+      if (existing == null) {
+        groups.set(key, {
+          key,
+          label: key,
+          representative: item,
+          items: [item],
+          count: 1,
+          distance,
+        });
+      } else {
+        existing.items.push(item);
+        existing.count += 1;
+        if (distance < existing.distance) {
+          existing.representative = item;
+          existing.distance = distance;
+        }
+      }
+    }
+    return Array.from(groups.values()).sort((a, b) => {
+      const diff = a.distance - b.distance;
+      if (Number.isFinite(diff) && diff !== 0) {
+        return diff;
+      }
+      if (!Number.isFinite(a.distance) && Number.isFinite(b.distance)) {
+        return 1;
+      }
+      if (Number.isFinite(a.distance) && !Number.isFinite(b.distance)) {
+        return -1;
+      }
+      return a.label.localeCompare(b.label);
+    });
+  }
+
+  let neighborGroupSummaries = $derived(buildNeighborGroupSummaries());
+
+  function resolveActiveNeighborGroupLabel(): string | null {
+    if (activeNeighborGroup == null) {
+      return null;
+    }
+    const match = neighborGroupSummaries.find((group) => group.key === activeNeighborGroup);
+    return match?.label ?? null;
+  }
+
+  let activeNeighborGroupLabel = $derived(resolveActiveNeighborGroupLabel());
+
+  function buildNeighborGroupColors(): Record<string, string> | null {
+    if (!groupNeighborsByCondition || activeNeighborGroup != null) {
+      return null;
+    }
+    if (neighborGroupSummaries.length === 0) {
+      return null;
+    }
+    const palette = defaultOrdinalColors(Math.max(1, neighborGroupSummaries.length));
+    const colorMap: Record<string, string> = {};
+    neighborGroupSummaries.forEach((group, index) => {
+      colorMap[group.key] = palette[index % palette.length];
+    });
+    return colorMap;
+  }
+
+  let neighborGroupColors = $derived(buildNeighborGroupColors());
+
+  function buildSearchResultDisplayItems(): SearchResultItem[] {
+    if (searchResult?.items == null) {
+      return [];
+    }
+    if (groupNeighborsByCondition && activeNeighborGroup != null) {
+      return searchResult.items.filter((item) => computeNeighborGroupKey(item) === activeNeighborGroup);
+    }
+    return searchResult.items;
+  }
+
+  let searchResultDisplayItems = $derived(buildSearchResultDisplayItems());
+
+  function buildSearchResultDisplayLabel(): string {
+    if (searchResult == null) {
+      return "";
+    }
+    if (!groupNeighborsByCondition) {
+      return searchResult.label;
+    }
+    if (activeNeighborGroup != null) {
+      return `${searchResult.label} • ${activeNeighborGroupLabel ?? activeNeighborGroup}`;
+    }
+    return `${searchResult.label} (grouped by condition)`;
+  }
+
+  let searchResultDisplayLabel = $derived(buildSearchResultDisplayLabel());
+
+  $effect(() => {
+    if (!groupNeighborsByCondition || searchResult == null) {
+      activeNeighborGroup = null;
+      return;
+    }
+    if (activeNeighborGroup != null) {
+      const exists = neighborGroupSummaries.some((group) => group.key === activeNeighborGroup);
+      if (!exists) {
+        activeNeighborGroup = null;
+      }
+    }
+  });
+
   function updateSearchResultVisibleCount(totalCount: number, preserveIncrement: boolean) {
     if (totalCount <= 0) {
       searchResultVisibleCount = 0;
@@ -361,18 +524,25 @@ interface UploadSearchResultDetail {
       searcherResult,
     );
 
+    const augmented = augmentSearchResultsWithGroup(result);
     searcherStatus = "";
-    searchResult = { label: label, highlight: highlight, items: result };
+    searchResult = { label: label, highlight: highlight, items: augmented };
     searchResultFetchLimit = displayLimit;
     let searcherHasMore = (searcherResult as any)?.__hasMore === true;
     searchResultBackendHasMore = (searcherHasMore || searcherResult.length >= fetchLimit) && fetchLimit < searchLimit;
-    updateSearchResultVisibleCount(result.length, options?.preserveIncrement === true);
+    updateSearchResultVisibleCount(augmented.length, options?.preserveIncrement === true);
     if (options?.preserveIncrement !== true) {
       searchResultLoadingMore = false;
     }
     uploadSearchNeighborCount = 0;
     lastSearchArgs = { query: effectiveQuery, mode: resolvedMode as "full-text" | "vector" | "neighbors" };
     uploadFocusPoint = null;
+    if (groupNeighborsByCondition && activeNeighborGroup != null) {
+      const stillPresent = augmented.some((item) => computeNeighborGroupKey(item) === activeNeighborGroup);
+      if (!stillPresent) {
+        activeNeighborGroup = null;
+      }
+    }
   }
 
 const debouncedSearch = debounce(doSearch, 500);
@@ -466,6 +636,43 @@ function computeUploadFocusPoint(items: SearchResultItem[]): { x: number; y: num
     x: sumX / sumW,
     y: sumY / sumW,
   };
+}
+
+function toggleGroupByCondition(checked: boolean) {
+  groupNeighborsByCondition = checked;
+  if (!checked) {
+    activeNeighborGroup = null;
+    return;
+  }
+  searchResultHighlight = null;
+}
+
+function selectNeighborGroup(groupKey: string) {
+  if (groupKey == null || groupKey === "") {
+    return;
+  }
+  activeNeighborGroup = groupKey;
+  searchResultHighlight = null;
+  const items =
+    searchResult?.items?.filter((item) => computeNeighborGroupKey(item) === groupKey) ?? ([] as SearchResultItem[]);
+  if (items.length > 0) {
+    const focus = computeUploadFocusPoint(items);
+    if (focus != null) {
+      uploadFocusPoint = focus;
+      void animateEmbeddingViewToPoint(undefined, focus.x, focus.y);
+    }
+  }
+}
+
+function clearNeighborGroupSelection() {
+  activeNeighborGroup = null;
+  searchResultHighlight = null;
+  if (searchResult?.items != null && searchResult.items.length > 0) {
+    const focus = computeUploadFocusPoint(searchResult.items);
+    if (focus != null) {
+      uploadFocusPoint = focus;
+    }
+  }
 }
 
 async function filterNeighborsByMetadata(
@@ -573,9 +780,16 @@ async function displayNeighborResults(
       predicate,
       neighbors,
     );
-    searchResult = { label, highlight: "", items: result };
-    updateSearchResultVisibleCount(result.length, searchResultLoadingMore);
-    return result;
+    const augmented = augmentSearchResultsWithGroup(result);
+    searchResult = { label, highlight: "", items: augmented };
+    updateSearchResultVisibleCount(augmented.length, searchResultLoadingMore);
+    if (groupNeighborsByCondition && activeNeighborGroup != null) {
+      const stillPresent = augmented.some((item) => computeNeighborGroupKey(item) === activeNeighborGroup);
+      if (!stillPresent) {
+        activeNeighborGroup = null;
+      }
+    }
+    return augmented;
   } catch (error) {
     console.error("Failed to resolve neighbor results", error);
     searchResult = { label, highlight: "", items: [] };
@@ -1106,6 +1320,8 @@ function clearSearch() {
                         items: searchResult.items,
                         highlightItem: searchResultHighlight,
                         focusPoint: uploadFocusPoint,
+                        groupMode: groupNeighborsByCondition && activeNeighborGroup == null,
+                        groupColors: neighborGroupColors,
                       },
                     }
                   : null}
@@ -1212,9 +1428,29 @@ function clearSearch() {
           {#if searcher && searchResultVisible}
             <div class="flex-none rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm shadow-lg overflow-hidden h-[28rem] max-h-[65vh]">
               {#if searchResult != null}
+                <div class="flex items-center justify-between px-3 py-2 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-300 dark:border-slate-600">
+                  <label class="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      class="h-3.5 w-3.5 rounded border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-200"
+                      checked={groupNeighborsByCondition}
+                      disabled={searchResult.items.length === 0}
+                      onchange={(event) => toggleGroupByCondition((event.currentTarget as HTMLInputElement).checked)}
+                    />
+                    <span>Group by condition</span>
+                  </label>
+                  {#if groupNeighborsByCondition && activeNeighborGroup != null}
+                    <button
+                      class="text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-medium"
+                      onclick={clearNeighborGroupSelection}
+                    >
+                      Back to groups
+                    </button>
+                  {/if}
+                </div>
                 <SearchResultList
-                  items={searchResult.items}
-                  label={searchResult.label}
+                  items={searchResultDisplayItems}
+                  label={searchResultDisplayLabel}
                   highlight={searchResult.highlight}
                   visibleCount={searchResultVisibleCount}
                   hasMore={shouldShowLoadMore()}
@@ -1227,6 +1463,13 @@ function clearSearch() {
                   }}
                   onClose={clearSearch}
                   columnStyles={resolvedColumnStyles}
+                  groupMode={groupNeighborsByCondition}
+                  groups={neighborGroupSummaries}
+                  groupColors={neighborGroupColors}
+                  activeGroupKey={activeNeighborGroup}
+                  activeGroupLabel={activeNeighborGroupLabel}
+                  onGroupSelect={selectNeighborGroup}
+                  onGroupBack={clearNeighborGroupSelection}
                 />
               {:else if searcherStatus != null}
                 <div class="flex h-full items-center justify-center p-4">
