@@ -139,7 +139,7 @@
     </div>
   </div>
   <hr class="border-slate-300 dark:border-slate-600" />
-  <div class="flex flex-col overflow-x-hidden overflow-y-scroll" bind:this={listContainer}>
+  <div class="flex flex-col overflow-x-hidden overflow-y-scroll pb-4 pr-1" bind:this={listContainer}>
     {#if showGroupSummary}
       {#if visibleGroups.length === 0}
         <div class="px-3 py-4 text-slate-400 dark:text-slate-500 text-sm select-none">No conditions available.</div>
