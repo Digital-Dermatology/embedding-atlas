@@ -276,7 +276,7 @@ export function resolveSearcher(options: {
           }
           return String(neighbor.id) !== String(id);
         });
-        let moreAvailable = filtered.length >= limit && neighbors.length >= requestLimit;
+        let moreAvailable = filtered.length >= limit && limit < DEFAULT_NEIGHBOR_LIMIT;
         let truncated = filtered
           .map((neighbor) => ({
             id: neighbor.id,
@@ -315,7 +315,7 @@ export function resolveSearcher(options: {
             return { id: nid, distance: distances?.[i] };
           })
           .filter((x) => x.id != id && x.id != null);
-        let moreAvailable = r.length > limit;
+        let moreAvailable = r.length > limit && limit < DEFAULT_NEIGHBOR_LIMIT;
         let truncated = r.slice(0, limit);
         (truncated as any).__hasMore = moreAvailable;
         return truncated;
