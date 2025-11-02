@@ -551,7 +551,7 @@ def main(
     )
 
     vector_neighbors_endpoint = None
-    max_point_neighbors = 50
+    max_point_neighbors = 500
 
     upload_pipeline = None
     if upload_config is not None:
@@ -571,10 +571,10 @@ def main(
                 vector_neighbors_endpoint = "point-neighbors"
                 try:
                     max_point_neighbors = max(
-                        1, int(os.environ.get("ATLAS_POINT_NEIGHBORS_K", "50"))
+                        1, int(os.environ.get("ATLAS_POINT_NEIGHBORS_K", "500"))
                     )
                 except ValueError:
-                    max_point_neighbors = 50
+                    max_point_neighbors = 500
                 props.setdefault("data", {})
                 props["data"]["vectorNeighborsEndpoint"] = vector_neighbors_endpoint
         else:

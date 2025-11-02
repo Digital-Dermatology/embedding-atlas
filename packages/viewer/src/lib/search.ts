@@ -276,7 +276,7 @@ export function resolveSearcher(options: {
           }
           return String(neighbor.id) !== String(id);
         });
-        let moreAvailable = filtered.length >= limit && limit < DEFAULT_NEIGHBOR_LIMIT;
+        let moreAvailable = Boolean(payload?.hasMore) || (filtered.length >= limit && limit < DEFAULT_NEIGHBOR_LIMIT);
         let truncated = filtered
           .map((neighbor) => ({
             id: neighbor.id,

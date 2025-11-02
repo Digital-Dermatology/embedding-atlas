@@ -253,6 +253,7 @@ def make_server(
 
         id_values = dataset_df[id_column].tolist()
         neighbors = []
+        has_more = False
         for idx_val, dist in zip(list(indices or []), list(distances or [])):
             if idx_val is None or idx_val < 0 or idx_val >= len(id_values):
                 continue
@@ -266,9 +267,10 @@ def make_server(
                 }
             )
             if len(neighbors) >= limit:
+                has_more = len(neighbors) >= limit and neighbors_k > limit
                 break
 
-        return JSONResponse({"neighbors": neighbors})
+        return JSONResponse({"neighbors": neighbors, "hasMore": has_more})
 
     @app.get("/data/images/{column}/{filename}")
     async def get_image(column: str, filename: str):
