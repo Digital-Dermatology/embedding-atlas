@@ -513,6 +513,11 @@ interface UploadSearchResultDetail {
       });
     }
 
+    let neighborAnchorPoint: { x: number; y: number } | null = null;
+    if (resolvedMode === "neighbors") {
+      neighborAnchorPoint = await resolveEmbeddingPoint(effectiveQuery);
+    }
+
     // Apply predicate in case the searcher does not handle predicate.
     // And convert the search result ids to tuples.
     let result = await querySearchResultItems(
@@ -536,7 +541,22 @@ interface UploadSearchResultDetail {
     }
     uploadSearchNeighborCount = 0;
     lastSearchArgs = { query: effectiveQuery, mode: resolvedMode as "full-text" | "vector" | "neighbors" };
-    uploadFocusPoint = null;
+    if (resolvedMode === "neighbors") {
+      if (neighborAnchorPoint != null) {
+        uploadFocusPoint = neighborAnchorPoint;
+        if (options?.preserveIncrement !== true) {
+          void animateEmbeddingViewToPoint(effectiveQuery, neighborAnchorPoint.x, neighborAnchorPoint.y);
+        }
+      } else {
+        const fallbackAnchor = computeUploadFocusPoint(augmented);
+        uploadFocusPoint = fallbackAnchor ?? null;
+        if (fallbackAnchor != null && options?.preserveIncrement !== true) {
+          void animateEmbeddingViewToPoint(undefined, fallbackAnchor.x, fallbackAnchor.y);
+        }
+      }
+    } else {
+      uploadFocusPoint = null;
+    }
     if (groupNeighborsByCondition && activeNeighborGroup != null) {
       const stillPresent = augmented.some((item) => computeNeighborGroupKey(item) === activeNeighborGroup);
       if (!stillPresent) {
@@ -638,6 +658,41 @@ function computeUploadFocusPoint(items: SearchResultItem[]): { x: number; y: num
   };
 }
 
+async function resolveEmbeddingPoint(identifier: any): Promise<{ x: number; y: number } | null> {
+  if (
+    identifier == null ||
+    data?.projection?.x == null ||
+    data?.projection?.y == null ||
+    data?.id == null ||
+    data?.table == null
+  ) {
+    return null;
+  }
+  try {
+    const result = await coordinator.query(`
+      SELECT
+        ${SQL.column(data.projection.x, data.table)} AS __x__,
+        ${SQL.column(data.projection.y, data.table)} AS __y__
+      FROM ${data.table}
+      WHERE ${SQL.column(data.id, data.table)} = ${SQL.literal(identifier)}
+      LIMIT 1
+    `);
+    const rows = Array.from(result) as Record<string, any>[];
+    if (rows.length === 0) {
+      return null;
+    }
+    const x = Number(rows[0].__x__);
+    const y = Number(rows[0].__y__);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      return null;
+    }
+    return { x, y };
+  } catch (error) {
+    console.warn("Failed to resolve embedding point for anchor", error);
+    return null;
+  }
+}
+
 function toggleGroupByCondition(checked: boolean) {
   groupNeighborsByCondition = checked;
   if (!checked) {
@@ -658,7 +713,6 @@ function selectNeighborGroup(groupKey: string) {
   if (items.length > 0) {
     const focus = computeUploadFocusPoint(items);
     if (focus != null) {
-      uploadFocusPoint = focus;
       void animateEmbeddingViewToPoint(undefined, focus.x, focus.y);
     }
   }
@@ -667,11 +721,8 @@ function selectNeighborGroup(groupKey: string) {
 function clearNeighborGroupSelection() {
   activeNeighborGroup = null;
   searchResultHighlight = null;
-  if (searchResult?.items != null && searchResult.items.length > 0) {
-    const focus = computeUploadFocusPoint(searchResult.items);
-    if (focus != null) {
-      uploadFocusPoint = focus;
-    }
+  if (uploadFocusPoint != null) {
+    void animateEmbeddingViewToPoint(undefined, uploadFocusPoint.x, uploadFocusPoint.y);
   }
 }
 
