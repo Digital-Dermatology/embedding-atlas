@@ -4,6 +4,7 @@ import { default as IconChevronDown, default as IconDown } from "~icons/fluent/c
 import { default as IconChevronUp, default as IconUp } from "~icons/fluent/chevron-up-16-filled";
 import IconAnnotation from "~icons/fluent/comment-text-16-filled";
 import IconEmbeddingView from "~icons/fluent/data-scatter-20-filled";
+import IconChart from "~icons/fluent/data-usage-20-filled";
 import IconClose from "~icons/fluent/dismiss-16-filled";
 import { default as IconDownload, default as IconExport } from "~icons/fluent/document-arrow-down-16-filled";
 import IconEdit from "~icons/fluent/edit-16-filled";
@@ -16,6 +17,7 @@ import IconLightMode from "~icons/fluent/weather-sunny-16-filled";
 
 export {
   IconAnnotation,
+  IconChart,
   IconChevronDown,
   IconChevronUp,
   IconClose,

@@ -26,11 +26,12 @@
 
   import {
     IconDarkMode,
+    IconChart,
     IconDownload,
     IconEmbeddingView,
     IconExport,
     IconLightMode,
-    IconMenu,
+    IconSearch,
     IconSettings,
     IconTable,
   } from "./icons.js";
@@ -1340,8 +1341,8 @@ function clearSearch() {
           <ToggleButton icon={IconEmbeddingView} title="Show / hide embedding" bind:checked={showEmbedding} />
         {/if}
         <ToggleButton icon={IconTable} title="Show / hide table" bind:checked={showTable} />
-        <ToggleButton icon={IconMenu} title="Show / hide NN tools" bind:checked={showNNPanel} />
-        <ToggleButton icon={IconSettings} title="Show / hide widgets" bind:checked={showWidgetPanel} />
+        <ToggleButton icon={IconSearch} title="Show / hide NN tools" bind:checked={showNNPanel} />
+        <ToggleButton icon={IconChart} title="Show / hide widgets" bind:checked={showWidgetPanel} />
       </div>
     </div>
     </div>
