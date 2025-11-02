@@ -675,7 +675,7 @@ async function loadMoreSearchResults() {
     return;
   }
   if (searchResultBackendHasMore && lastSearchArgs != null) {
-    let nextLimit = Math.min(searchLimit, searchResultFetchLimit + searchPageSize);
+    let nextLimit = Math.min(searchLimit, searchResultFetchLimit * 2);
     if (nextLimit <= searchResultFetchLimit) {
       searchResultBackendHasMore = false;
       return;
