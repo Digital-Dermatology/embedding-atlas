@@ -313,7 +313,11 @@ interface UploadSearchResultDetail {
     let highlight: string = "";
     let label = query != null ? query.toString() : "";
     let effectiveQuery = query;
-    const fetchLimit = Math.min(searchLimit, options?.limit ?? searchPageSize);
+    const displayLimit = Math.min(searchLimit, options?.limit ?? searchPageSize);
+    const fetchLimit =
+      resolvedMode === "full-text" && searcher.fullTextSearch != null
+        ? Math.min(searchLimit, options?.limit ?? searchLimit)
+        : displayLimit;
 
     if (resolvedMode == "full-text" && searcher.fullTextSearch != null) {
       effectiveQuery = String(query).trim();
@@ -359,7 +363,7 @@ interface UploadSearchResultDetail {
 
     searcherStatus = "";
     searchResult = { label: label, highlight: highlight, items: result };
-    searchResultFetchLimit = fetchLimit;
+    searchResultFetchLimit = displayLimit;
     let searcherHasMore = (searcherResult as any)?.__hasMore === true;
     searchResultBackendHasMore = (searcherHasMore || searcherResult.length >= fetchLimit) && fetchLimit < searchLimit;
     updateSearchResultVisibleCount(result.length, options?.preserveIncrement === true);
