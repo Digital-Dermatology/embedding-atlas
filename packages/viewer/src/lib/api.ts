@@ -58,6 +58,9 @@ export interface EmbeddingAtlasProps {
   /** The initial viewer state. */
   initialState?: EmbeddingAtlasState | null;
 
+  /** Optional map of initial states keyed by URL path segment. */
+  initialStateVariants?: Record<string, EmbeddingAtlasState> | null;
+
   /** Configuration for the embedding view. See docs for the EmbeddingView. */
   embeddingViewConfig?: EmbeddingViewConfig | null;
 

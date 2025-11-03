@@ -28,6 +28,49 @@
   let initialState: any | null = $state.raw(null);
   let config: Partial<EmbeddingAtlasProps> | null = $state.raw(null);
 
+  function currentPathSegment(): string | null {
+    if (typeof window === "undefined" || !window.location) {
+      return null;
+    }
+    let pathname = window.location.pathname ?? "";
+    pathname = pathname.replace(/^\/+/, "");
+    if (!pathname) {
+      return null;
+    }
+    const [segment] = pathname.split("/");
+    return segment || null;
+  }
+
+  function cloneState<T>(value: T): T {
+    if (value == null) {
+      return value;
+    }
+    const structured = (globalThis as any).structuredClone;
+    if (typeof structured === "function") {
+      return structured(value);
+    }
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch (_err) {
+      return value;
+    }
+  }
+
+  function resolveInitialState(cfg: Partial<EmbeddingAtlasProps> | null) {
+    if (!cfg) {
+      return null;
+    }
+    const segment = currentPathSegment();
+    const variants = cfg.initialStateVariants ?? null;
+    if (segment && variants && variants[segment] != null) {
+      return cloneState(variants[segment]);
+    }
+    if (cfg.initialState != null) {
+      return cloneState(cfg.initialState);
+    }
+    return null;
+  }
+
 onMount(async () => {
   try {
     let urlState = await getQueryPayload();
@@ -37,10 +80,8 @@ onMount(async () => {
     });
     if (urlState != null) {
       initialState = urlState;
-    } else if (config?.initialState != null) {
-      initialState = config.initialState;
     } else {
-      initialState = null;
+      initialState = resolveInitialState(config);
     }
     ready = true;
   } catch (e: any) {
