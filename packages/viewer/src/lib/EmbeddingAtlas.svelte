@@ -175,6 +175,18 @@ interface UploadSearchResultDetail {
   }
 
   let columns: ColumnDesc[] = $state.raw([]);
+  let columnsReadyResolve: (() => void) | null = null;
+  const columnsReady = new Promise<void>((resolve) => {
+    columnsReadyResolve = resolve;
+  });
+  let columnsLoaded = false;
+
+  async function waitForColumns() {
+    if (columnsLoaded) {
+      return;
+    }
+    await columnsReady;
+  }
   let plots: Plot[] = $state.raw([]);
   let plotStateStores = new PlotStateStoreManager();
 
@@ -469,6 +481,8 @@ interface UploadSearchResultDetail {
     uploadSearchDetail = null;
     uploadSearchHasMore = false;
     searchResultBackendHasMore = false;
+
+    await waitForColumns();
 
     const availableModes = searchModeOptions.map((x) => x.value);
     if (availableModes.length === 0) {
@@ -861,6 +875,7 @@ async function displayNeighborResults(
 }
 
 async function handleImageSearchResult(detail: UploadSearchResultDetail) {
+  await waitForColumns();
   const payload = (detail as any)?.detail ? ((detail as any).detail as UploadSearchResultDetail) : detail;
   let neighbors = payload?.neighbors ?? [];
   const filters = payload?.filters ?? [];
@@ -1178,6 +1193,9 @@ function clearSearch() {
   onMount(async () => {
     let ignoreColumns = [data.id, data.text, data.projection?.x, data.projection?.y].filter((x) => x != null);
     columns = (await tableInfo.columnDescriptions()).filter((x) => !x.name.startsWith("__"));
+    columnsLoaded = true;
+    columnsReadyResolve?.();
+    columnsReadyResolve = null;
     if (plots.length == 0) {
       plots = await tableInfo.defaultPlots(columns.filter((x) => ignoreColumns.indexOf(x.name) < 0));
     }
