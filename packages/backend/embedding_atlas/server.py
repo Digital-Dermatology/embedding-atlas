@@ -15,7 +15,7 @@ import duckdb
 import numpy as np
 from fastapi import FastAPI, File, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from .data_source import DataSource
@@ -395,24 +395,38 @@ def make_server(
 
     # Static files for the frontend
     if index_path is not None and frontend_routes:
-        async def _serve_frontend_root():
-            return FileResponse(index_path)
-
-        async def _serve_frontend_path(_path: str):
-            return FileResponse(index_path)
-
         for prefix in frontend_routes:
+            target = f"/?atlas_route={prefix}"
+
+            async def _redirect_get(prefix_target: str = target):
+                return RedirectResponse(prefix_target, status_code=307)
+
+            async def _redirect_head(prefix_target: str = target):
+                return RedirectResponse(prefix_target, status_code=307)
+
+            async def _redirect_subpath(_path: str, prefix_target: str = target):
+                return RedirectResponse(prefix_target, status_code=307)
+
             app.add_api_route(
                 f"/{prefix}",
-                _serve_frontend_root,
-                methods=["GET", "HEAD"],
+                _redirect_get,
+                methods=["GET"],
                 include_in_schema=False,
+                name=f"{prefix}-redirect-get",
+            )
+            app.add_api_route(
+                f"/{prefix}",
+                _redirect_head,
+                methods=["HEAD"],
+                include_in_schema=False,
+                name=f"{prefix}-redirect-head",
             )
             app.add_api_route(
                 f"/{prefix}/{{path:path}}",
-                _serve_frontend_path,
+                _redirect_subpath,
                 methods=["GET", "HEAD"],
                 include_in_schema=False,
+                name=f"{prefix}-redirect-subpath",
             )
 
     app.mount("/", StaticFiles(directory=static_path, html=True))
