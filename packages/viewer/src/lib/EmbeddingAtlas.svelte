@@ -163,6 +163,8 @@ interface UploadSearchResultDetail {
   let nnPanelSidebarClasses = $derived(
     showMainView ? "w-full" : "w-full xl:w-1/3 xl:min-w-[18rem] xl:pr-2 xl:overflow-y-auto",
   );
+  let nnPanelFullWidth = $derived(showNNPanel && !showMainView && !showWidgetPanel);
+  let widgetPanelFullWidth = $derived(showWidgetPanel && !showMainView && !showNNPanel);
 
   const tableInfo = new TableInfo(coordinator, data.table);
 
@@ -1488,8 +1490,9 @@ function clearSearch() {
           {#if showNNPanel}
             <div
               class="flex flex-col bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm overflow-hidden h-full"
-              style:width={showMainView ? `${nnPanelWidth}px` : null}
+              style:width={showMainView ? `${nnPanelWidth}px` : nnPanelFullWidth ? "100%" : null}
               class:flex-1={!showMainView}
+              class:w-full={nnPanelFullWidth}
               transition:slide={{ axis: "x", duration: animationDuration }}
             >
               <div class={`flex-1 min-h-0 flex gap-3 p-3 ${nnPanelLayoutClasses}`}>
@@ -1527,7 +1530,7 @@ function clearSearch() {
                     </div>
                   {/if}
                 </div>
-                <div class={`flex-1 min-h-0 flex flex-col gap-3${showMainView ? "" : " xl:overflow-y-auto"}`}>
+                <div class={`flex-1 min-h-0 flex flex-col gap-3${showMainView ? "" : " overflow-y-auto"}`}>
                   {#if searcher && searchResultVisible}
                     <div class="flex-1 min-h-[12rem] rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm shadow-lg overflow-hidden flex flex-col">
                       {#if searchResult != null}
@@ -1604,8 +1607,9 @@ function clearSearch() {
             {/if}
             <div
               class="flex flex-col bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm overflow-hidden h-full"
-              style:width={showMainView ? `${widgetPanelWidth}px` : null}
+              style:width={showMainView ? `${widgetPanelWidth}px` : widgetPanelFullWidth ? "100%" : null}
               class:flex-1={!showMainView}
+              class:w-full={widgetPanelFullWidth}
               transition:slide={{ axis: "x", duration: animationDuration }}
             >
               <div class="flex-1 min-h-0 overflow-y-auto p-3">
