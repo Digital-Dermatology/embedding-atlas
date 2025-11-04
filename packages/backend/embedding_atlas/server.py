@@ -396,15 +396,27 @@ def make_server(
             )
 
     # Static files for the frontend
-    if index_path is not None:
+    if index_path is not None and frontend_routes:
+        def _make_frontend_handler() -> Callable[..., FileResponse]:
+            async def _handler(*_args, **_kwargs):
+                return FileResponse(index_path)
 
-        @app.exception_handler(HTTPException)
-        async def _atlas_http_exception_handler(request: Request, exc: HTTPException):
-            if exc.status_code == 404:
-                prefix = request.url.path.lstrip("/").split("/", 1)[0]
-                if prefix in frontend_routes:
-                    return FileResponse(index_path)
-            return await http_exception_handler(request, exc)
+            return _handler
+
+        frontend_handler = _make_frontend_handler()
+        for prefix in frontend_routes:
+            app.add_api_route(
+                f"/{prefix}",
+                frontend_handler,
+                methods=["GET", "HEAD"],
+                include_in_schema=False,
+            )
+            app.add_api_route(
+                f"/{prefix}/{{path:path}}",
+                frontend_handler,
+                methods=["GET", "HEAD"],
+                include_in_schema=False,
+            )
 
     app.mount("/", StaticFiles(directory=static_path, html=True))
 
