@@ -157,6 +157,12 @@ interface UploadSearchResultDetail {
   let anyPanelVisible = $derived(showNNPanel || showWidgetPanel);
   let firstPanel = $derived<SidePanelKind>(showNNPanel ? "nn" : showWidgetPanel ? "widgets" : null);
   let widgetFullWidth = $derived(!showEmbedding && !showTable && !showNNPanel);
+  let nnPanelLayoutClasses = $derived(
+    showMainView ? "flex-col overflow-y-auto" : "flex-col xl:flex-row xl:overflow-hidden",
+  );
+  let nnPanelSidebarClasses = $derived(
+    showMainView ? "w-full" : "w-full xl:w-1/3 xl:min-w-[18rem] xl:pr-2 xl:overflow-y-auto",
+  );
 
   const tableInfo = new TableInfo(coordinator, data.table);
 
@@ -1486,16 +1492,8 @@ function clearSearch() {
               class:flex-1={!showMainView}
               transition:slide={{ axis: "x", duration: animationDuration }}
             >
-              <div
-                class="flex-1 min-h-0 flex gap-3 p-3"
-                class:flex-col={showMainView}
-                class:flex-row={!showMainView}
-                class:overflow-y-auto={showMainView}
-                class:overflow-hidden={!showMainView}
-              >
-                <div
-                  class={`flex flex-col gap-3 ${showMainView ? 'w-full' : 'w-1/3 min-w-[18rem] pr-2 overflow-y-auto'}`}
-                >
+              <div class={`flex-1 min-h-0 flex gap-3 p-3 ${nnPanelLayoutClasses}`}>
+                <div class={`flex flex-col gap-3 ${nnPanelSidebarClasses}`}>
                   {#if uploadSearchConfig}
                     <ImageSearchWidget
                       disabled={!uploadSearchAvailable}
@@ -1529,10 +1527,7 @@ function clearSearch() {
                     </div>
                   {/if}
                 </div>
-                <div
-                  class="flex-1 min-h-0 flex flex-col gap-3"
-                  class:overflow-y-auto={!showMainView}
-                >
+                <div class={`flex-1 min-h-0 flex flex-col gap-3${showMainView ? "" : " xl:overflow-y-auto"}`}>
                   {#if searcher && searchResultVisible}
                     <div class="flex-1 min-h-[12rem] rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm shadow-lg overflow-hidden flex flex-col">
                       {#if searchResult != null}
