@@ -28,6 +28,8 @@
   let initialState: any | null = $state.raw(null);
   let config: Partial<EmbeddingAtlasProps> | null = $state.raw(null);
 
+  type RouteSource = "query" | "path" | null;
+
   function atlasRouteFromQuery(): string | null {
     if (typeof window === "undefined" || !window.location) {
       return null;
@@ -57,13 +59,26 @@
     return segment || null;
   }
 
-  function cleanRouteParam() {
+  function normalizeLocation(source: RouteSource) {
     if (typeof window === "undefined" || typeof window.history === "undefined") {
       return;
     }
     try {
       const url = new URL(window.location.href);
-      url.searchParams.delete("atlas_route");
+      let changed = false;
+      if (source === "query" || source === "path") {
+        if (url.searchParams.has("atlas_route")) {
+          url.searchParams.delete("atlas_route");
+          changed = true;
+        }
+        if (url.pathname !== "/") {
+          url.pathname = "/";
+          changed = true;
+        }
+      }
+      if (!changed) {
+        return;
+      }
       window.history.replaceState(
         window.history.state,
         "",
@@ -93,12 +108,16 @@
     if (!cfg) {
       return null;
     }
-    const segment = atlasRouteFromQuery() ?? currentPathSegment();
+    const querySegment = atlasRouteFromQuery();
+    const pathSegment = currentPathSegment();
+    const segment = querySegment ?? pathSegment;
+    const source: RouteSource = querySegment ? "query" : pathSegment ? "path" : null;
     const variants = cfg.initialStateVariants ?? null;
     if (segment && variants && variants[segment] != null) {
-      cleanRouteParam();
+      normalizeLocation(source);
       return cloneState(variants[segment]);
     }
+    normalizeLocation(null);
     if (cfg.initialState != null) {
       return cloneState(cfg.initialState);
     }

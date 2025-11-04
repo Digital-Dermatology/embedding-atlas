@@ -15,7 +15,7 @@ import duckdb
 import numpy as np
 from fastapi import FastAPI, File, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .data_source import DataSource
@@ -395,29 +395,22 @@ def make_server(
 
     # Static files for the frontend
     if index_path is not None and frontend_routes:
-        def _make_redirect(target: str):
-            async def _redirect():
-                return RedirectResponse(target, status_code=307)
+        async def _serve_frontend_root():
+            return FileResponse(index_path)
 
-            return _redirect
-
-        def _make_redirect_with_path(target: str):
-            async def _redirect(_path: str):
-                return RedirectResponse(target, status_code=307)
-
-            return _redirect
+        async def _serve_frontend_path(_path: str):
+            return FileResponse(index_path)
 
         for prefix in frontend_routes:
-            target = f"/?atlas_route={prefix}"
             app.add_api_route(
                 f"/{prefix}",
-                _make_redirect(target),
+                _serve_frontend_root,
                 methods=["GET", "HEAD"],
                 include_in_schema=False,
             )
             app.add_api_route(
                 f"/{prefix}/{{path:path}}",
-                _make_redirect_with_path(target),
+                _serve_frontend_path,
                 methods=["GET", "HEAD"],
                 include_in_schema=False,
             )
