@@ -1486,94 +1486,113 @@ function clearSearch() {
               class:flex-1={!showMainView}
               transition:slide={{ axis: "x", duration: animationDuration }}
             >
-              <div class="flex-1 min-h-0 flex flex-col gap-3 p-3 overflow-y-auto">
-                {#if uploadSearchConfig}
-                  <ImageSearchWidget
-                    disabled={!uploadSearchAvailable}
-                    endpoint={uploadSearchEndpoint}
-                    coordinator={coordinator}
-                    table={data.table}
-                    columns={columns}
-                    on:result={handleImageSearchResult}
-                  />
-                {/if}
-                {#if searcher}
-                  <div class="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm flex flex-col gap-3 p-3">
-                    <div class="flex items-center justify-between gap-2">
-                      <div class="text-sm font-semibold text-slate-600 dark:text-slate-300 select-none">Search</div>
-                      {#if searchModeOptions.filter((x) => x.value != "neighbors").length > 1}
-                        <Select
-                          label="Mode"
-                          options={searchModeOptions.filter((x) => x.value != "neighbors")}
-                          value={searchMode}
-                          onChange={(v) => (searchMode = v)}
-                          class="min-w-[8rem]"
-                        />
-                      {/if}
-                    </div>
-                    <Input
-                      type="search"
-                      placeholder="Search... (e.g., dermatitis)"
-                      className="w-full text-base shadow-md shadow-slate-300/40 dark:shadow-black/40"
-                      bind:value={searchQuery}
+              <div
+                class="flex-1 min-h-0 flex gap-3 p-3"
+                class:flex-col={showMainView}
+                class:flex-row={!showMainView}
+                class:overflow-y-auto={showMainView}
+                class:overflow-hidden={!showMainView}
+              >
+                <div
+                  class={`flex flex-col gap-3 ${showMainView ? 'w-full' : 'w-1/3 min-w-[18rem] pr-2 overflow-y-auto'}`}
+                >
+                  {#if uploadSearchConfig}
+                    <ImageSearchWidget
+                      disabled={!uploadSearchAvailable}
+                      endpoint={uploadSearchEndpoint}
+                      coordinator={coordinator}
+                      table={data.table}
+                      columns={columns}
+                      on:result={handleImageSearchResult}
                     />
-                  </div>
-                {/if}
-                {#if searcher && searchResultVisible}
-                  <div class="flex-1 min-h-[12rem] rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm shadow-lg overflow-hidden flex flex-col">
-                    {#if searchResult != null}
-                      <div class="flex items-center justify-between px-3 py-2 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-300 dark:border-slate-600">
-                        <label class="flex items-center gap-2 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            class="h-3.5 w-3.5 rounded border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-200"
-                            checked={groupNeighborsByCondition}
-                            disabled={searchResult.items.length === 0}
-                            onchange={(event) => toggleGroupByCondition((event.currentTarget as HTMLInputElement).checked)}
+                  {/if}
+                  {#if searcher}
+                    <div class="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm flex flex-col gap-3 p-3">
+                      <div class="flex items-center justify-between gap-2">
+                        <div class="text-sm font-semibold text-slate-600 dark:text-slate-300 select-none">Search</div>
+                        {#if searchModeOptions.filter((x) => x.value != "neighbors").length > 1}
+                          <Select
+                            label="Mode"
+                            options={searchModeOptions.filter((x) => x.value != "neighbors")}
+                            value={searchMode}
+                            onChange={(v) => (searchMode = v)}
+                            class="min-w-[8rem]"
                           />
-                          <span>Group by condition</span>
-                        </label>
-                        {#if groupNeighborsByCondition && activeNeighborGroup != null}
-                          <button
-                            class="text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-medium"
-                            onclick={clearNeighborGroupSelection}
-                          >
-                            Back to groups
-                          </button>
                         {/if}
                       </div>
-                      <div class="flex-1 min-h-0">
-                        <SearchResultList
-                          items={searchResultDisplayItems}
-                          label={searchResultDisplayLabel}
-                          highlight={searchResult.highlight}
-                          visibleCount={searchResultVisibleCount}
-                          hasMore={shouldShowLoadMore()}
-                          loadingMore={searchResultLoadingMore}
-                          onLoadMore={loadMoreSearchResults}
-                          onClick={async (item) => {
-                            scrollTableTo(item.id);
-                            searchResultHighlight = item;
-                            await animateEmbeddingViewToPoint(item.id, item.x, item.y);
-                          }}
-                          onClose={clearSearch}
-                          columnStyles={resolvedColumnStyles}
-                          groupMode={groupNeighborsByCondition}
-                          groups={neighborGroupSummaries}
-                          groupColors={neighborGroupColors}
-                          activeGroupKey={activeNeighborGroup}
-                          activeGroupLabel={activeNeighborGroupLabel}
-                          onGroupSelect={selectNeighborGroup}
-                          onGroupBack={clearNeighborGroupSelection}
-                        />
-                      </div>
-                    {:else if searcherStatus != null}
-                      <div class="flex-1 flex items-center justify-center p-4">
-                        <Spinner status={searcherStatus} />
-                      </div>
-                    {/if}
-                  </div>
-                {/if}
+                      <Input
+                        type="search"
+                        placeholder="Search... (e.g., dermatitis)"
+                        className="w-full text-base shadow-md shadow-slate-300/40 dark:shadow-black/40"
+                        bind:value={searchQuery}
+                      />
+                    </div>
+                  {/if}
+                </div>
+                <div
+                  class="flex-1 min-h-0 flex flex-col gap-3"
+                  class:overflow-y-auto={!showMainView}
+                >
+                  {#if searcher && searchResultVisible}
+                    <div class="flex-1 min-h-[12rem] rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm shadow-lg overflow-hidden flex flex-col">
+                      {#if searchResult != null}
+                        <div class="flex items-center justify-between px-3 py-2 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-300 dark:border-slate-600">
+                          <label class="flex items-center gap-2 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              class="h-3.5 w-3.5 rounded border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-200"
+                              checked={groupNeighborsByCondition}
+                              disabled={searchResult.items.length === 0}
+                              onchange={(event) => toggleGroupByCondition((event.currentTarget as HTMLInputElement).checked)}
+                            />
+                            <span>Group by condition</span>
+                          </label>
+                          {#if groupNeighborsByCondition && activeNeighborGroup != null}
+                            <button
+                              class="text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-medium"
+                              onclick={clearNeighborGroupSelection}
+                            >
+                              Back to groups
+                            </button>
+                          {/if}
+                        </div>
+                        <div class="flex-1 min-h-0">
+                          <SearchResultList
+                            items={searchResultDisplayItems}
+                            label={searchResultDisplayLabel}
+                            highlight={searchResult.highlight}
+                            visibleCount={searchResultVisibleCount}
+                            hasMore={shouldShowLoadMore()}
+                            loadingMore={searchResultLoadingMore}
+                            onLoadMore={loadMoreSearchResults}
+                            onClick={async (item) => {
+                              scrollTableTo(item.id);
+                              searchResultHighlight = item;
+                              await animateEmbeddingViewToPoint(item.id, item.x, item.y);
+                            }}
+                            onClose={clearSearch}
+                            columnStyles={resolvedColumnStyles}
+                            groupMode={groupNeighborsByCondition}
+                            groups={neighborGroupSummaries}
+                            groupColors={neighborGroupColors}
+                            activeGroupKey={activeNeighborGroup}
+                            activeGroupLabel={activeNeighborGroupLabel}
+                            onGroupSelect={selectNeighborGroup}
+                            onGroupBack={clearNeighborGroupSelection}
+                          />
+                        </div>
+                      {:else if searcherStatus != null}
+                        <div class="flex-1 flex items-center justify-center p-4">
+                          <Spinner status={searcherStatus} />
+                        </div>
+                      {/if}
+                    </div>
+                  {:else if searcherStatus != null}
+                    <div class="flex-1 min-h-[12rem] rounded-md border border-dashed border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm shadow-inner flex items-center justify-center text-slate-500 dark:text-slate-400">
+                      {searcherStatus}
+                    </div>
+                  {/if}
+                </div>
               </div>
             </div>
           {/if}
