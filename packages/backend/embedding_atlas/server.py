@@ -8,13 +8,16 @@ import re
 import threading
 import uuid
 from functools import lru_cache
-from typing import Callable
+from pathlib import Path
+from typing import Callable, Iterable
 
 import duckdb
 import numpy as np
-from fastapi import FastAPI, File, Request, Response, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, Response, UploadFile
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 
 from .data_source import DataSource
@@ -30,10 +33,20 @@ def make_server(
     vector_neighbor_column: str | None = None,
     id_column: str | None = None,
     max_neighbor_results: int = 50,
+    frontend_route_prefixes: Iterable[str] | None = None,
 ):
     """Creates a server for hosting Embedding Atlas"""
 
     app = FastAPI()
+    frontend_routes = {
+        prefix.strip("/")
+        for prefix in (frontend_route_prefixes or [])
+        if prefix and prefix.strip("/")
+    }
+    index_path = Path(static_path) / "index.html" if frontend_routes else None
+    if index_path is not None and not index_path.exists():
+        index_path = None
+        frontend_routes.clear()
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -383,6 +396,16 @@ def make_server(
             )
 
     # Static files for the frontend
+    if index_path is not None:
+
+        @app.exception_handler(HTTPException)
+        async def _atlas_http_exception_handler(request: Request, exc: HTTPException):
+            if exc.status_code == 404:
+                prefix = request.url.path.lstrip("/").split("/", 1)[0]
+                if prefix in frontend_routes:
+                    return FileResponse(index_path)
+            return await http_exception_handler(request, exc)
+
     app.mount("/", StaticFiles(directory=static_path, html=True))
 
     return app
