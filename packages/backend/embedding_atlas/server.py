@@ -13,11 +13,9 @@ from typing import Callable, Iterable
 
 import duckdb
 import numpy as np
-from fastapi import FastAPI, File, HTTPException, Request, Response, UploadFile
-from fastapi.exception_handlers import http_exception_handler
+from fastapi import FastAPI, File, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
-from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
 
 from .data_source import DataSource
@@ -397,23 +395,22 @@ def make_server(
 
     # Static files for the frontend
     if index_path is not None and frontend_routes:
-        def _make_frontend_handler() -> Callable[..., FileResponse]:
-            async def _handler(*_args, **_kwargs):
-                return FileResponse(index_path)
+        async def _serve_frontend_root():
+            return FileResponse(index_path)
 
-            return _handler
+        async def _serve_frontend_path(_path: str):
+            return FileResponse(index_path)
 
-        frontend_handler = _make_frontend_handler()
         for prefix in frontend_routes:
             app.add_api_route(
                 f"/{prefix}",
-                frontend_handler,
+                _serve_frontend_root,
                 methods=["GET", "HEAD"],
                 include_in_schema=False,
             )
             app.add_api_route(
                 f"/{prefix}/{{path:path}}",
-                frontend_handler,
+                _serve_frontend_path,
                 methods=["GET", "HEAD"],
                 include_in_schema=False,
             )
