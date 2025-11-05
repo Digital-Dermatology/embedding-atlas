@@ -4,12 +4,14 @@ import asyncio
 import concurrent.futures
 import json
 import os
+import mimetypes
 import re
 import threading
 import uuid
 from functools import lru_cache
 from pathlib import Path
 from typing import Callable, Iterable
+from datetime import datetime, timezone
 
 import duckdb
 import numpy as np
@@ -19,6 +21,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from .data_source import DataSource
+from .image_assets import IMAGE_TOKEN_PREFIX
 from .utils import arrow_to_bytes, to_parquet_bytes
 
 
@@ -64,6 +67,7 @@ def make_server(
     data_meta = metadata_props.get("data", {}) if isinstance(metadata_props, dict) else {}
     id_column = id_column or data_meta.get("id")
     dataset_df = data_source.dataset
+    feedback_lock = threading.Lock()
     total_rows = len(dataset_df)
     if vector_neighbor_column is not None and vector_neighbor_column not in dataset_df.columns:
         vector_neighbor_column = None
@@ -72,6 +76,80 @@ def make_server(
     except (TypeError, ValueError):
         max_neighbor_results = 50
     json_scalar_types = (str, int, float, bool)
+
+    MIME_EXTENSION_OVERRIDES = {
+        "image/jpeg": ".jpg",
+        "image/jpg": ".jpg",
+        "image/png": ".png",
+        "image/webp": ".webp",
+        "image/gif": ".gif",
+        "image/bmp": ".bmp",
+        "image/tiff": ".tiff",
+        "image/x-icon": ".ico",
+    }
+
+    def _extension_for_mime(mime: str | None) -> str:
+        if not mime:
+            return ".bin"
+        lower = mime.lower()
+        if lower in MIME_EXTENSION_OVERRIDES:
+            return MIME_EXTENSION_OVERRIDES[lower]
+        guess = mimetypes.guess_extension(lower)
+        if guess:
+            return guess
+        return ".bin"
+
+    def _persist_query_images(record_id: str, row) -> list[dict[str, str]]:
+        if row is None or data_source.image_assets is None or len(data_source.image_assets) == 0:
+            return []
+        images: list[dict[str, str]] = []
+        base_dir = data_source.feedback_path / "query-images" / record_id
+        for column in data_source.image_assets.keys():
+            try:
+                token = row[column] if hasattr(row, "__getitem__") else None
+            except Exception:
+                token = None
+            if not isinstance(token, str) or not token.startswith(IMAGE_TOKEN_PREFIX):
+                continue
+            suffix = token[len(IMAGE_TOKEN_PREFIX) :]
+            if "/" not in suffix:
+                continue
+            token_column, filename = suffix.split("/", 1)
+            filename = Path(filename).name
+            asset = data_source.get_image_asset(token_column, filename)
+            if asset is None:
+                continue
+            try:
+                content, mime = asset.load()
+            except Exception:
+                continue
+            extension = Path(filename).suffix
+            if not extension:
+                extension = _extension_for_mime(mime)
+            base_dir.mkdir(parents=True, exist_ok=True)
+            dest_name = filename if filename else f"{token_column}{extension}"
+            dest_path = base_dir / dest_name
+            if dest_path.exists():
+                dest_path = base_dir / f"{Path(dest_name).stem}-{record_id}{extension}"
+            with open(dest_path, "wb") as f:
+                f.write(content)
+            try:
+                rel_path = dest_path.relative_to(data_source.feedback_path)
+            except ValueError:
+                rel_path = dest_path
+            if hasattr(rel_path, "as_posix"):
+                rel_path_str = rel_path.as_posix()
+            else:
+                rel_path_str = str(rel_path)
+            images.append(
+                {
+                    "column": token_column,
+                    "token": token,
+                    "path": rel_path_str,
+                    "mime": mime,
+                }
+            )
+        return images
 
     def _json_scalar(value):
         if isinstance(value, json_scalar_types) or value is None:
@@ -164,6 +242,52 @@ def make_server(
         if obj is None:
             return Response(status_code=404)
         return obj
+
+    @app.post("/data/clinical-feedback")
+    async def post_clinical_feedback(request: Request):
+        try:
+            payload = await request.json()
+        except Exception:
+            return JSONResponse({"error": "Invalid JSON payload."}, status_code=400)
+        if not isinstance(payload, dict):
+            return JSONResponse({"error": "Invalid feedback payload."}, status_code=400)
+        record = {
+            "id": str(uuid.uuid4()),
+            "dataset": data_source.identifier,
+            "receivedAt": datetime.now(timezone.utc).isoformat(),
+            "client": request.client.host if request.client else None,
+            "route": payload.get("route"),
+            "payload": payload,
+        }
+        search_meta = payload.get("search", {}) if isinstance(payload.get("search"), dict) else {}
+        query_value = search_meta.get("query")
+        query_row_index = None
+        query_row = None
+        if query_value is not None:
+            try:
+                row_index, _row_id = _locate_row_by_identifier(str(query_value))
+            except Exception:
+                row_index = None
+            if row_index is not None:
+                query_row_index = int(row_index)
+                try:
+                    query_row = dataset_df.iloc[int(row_index)]
+                except Exception:
+                    query_row = None
+        if query_row_index is not None:
+            record["queryRowIndex"] = query_row_index
+            if id_column is not None and query_row is not None and id_column in query_row.index:
+                record["queryRowId"] = _json_scalar(query_row[id_column])
+        try:
+            with feedback_lock:
+                if query_row is not None:
+                    query_images = _persist_query_images(record["id"], query_row)
+                    if query_images:
+                        record["queryImages"] = query_images
+                data_source.append_feedback("clinical", record)
+        except Exception:
+            return JSONResponse({"error": "Failed to store feedback."}, status_code=500)
+        return JSONResponse({"status": "ok"})
 
     @app.get("/data/archive.zip")
     async def make_archive():

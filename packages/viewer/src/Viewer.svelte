@@ -27,6 +27,7 @@
   let status = $state("Loading...");
   let initialState: any | null = $state.raw(null);
   let config: Partial<EmbeddingAtlasProps> | null = $state.raw(null);
+  let activeRoute: string | null = $state(null);
 
   type RouteSource = "query" | "path" | null;
 
@@ -105,6 +106,7 @@
   }
 
   function resolveInitialState(cfg: Partial<EmbeddingAtlasProps> | null) {
+    activeRoute = null;
     if (!cfg) {
       return null;
     }
@@ -114,10 +116,14 @@
     const source: RouteSource = querySegment ? "query" : pathSegment ? "path" : null;
     const variants = cfg.initialStateVariants ?? null;
     if (segment && variants && variants[segment] != null) {
+      activeRoute = segment;
       normalizeLocation(source);
       return cloneState(variants[segment]);
     }
     normalizeLocation(null);
+    if (segment) {
+      activeRoute = segment;
+    }
     if (cfg.initialState != null) {
       return cloneState(cfg.initialState);
     }
@@ -132,6 +138,7 @@ onMount(async () => {
       status = s;
     });
     if (urlState != null) {
+      activeRoute = atlasRouteFromQuery() ?? currentPathSegment();
       initialState = urlState;
     } else {
       initialState = resolveInitialState(config);
@@ -180,6 +187,7 @@ onMount(async () => {
       onExportSelection={dataSource.downloadSelection ? onExportSelection : null}
       onStateChange={debounce(onStateChange, 200)}
       cache={dataSource.cache}
+      activeRoute={activeRoute}
     />
   {:else}
     <div

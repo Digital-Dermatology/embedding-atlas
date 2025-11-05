@@ -14,6 +14,7 @@
   import PlotList from "./PlotList.svelte";
   import FilteredCount from "./plots/FilteredCount.svelte";
   import SearchResultList from "./SearchResultList.svelte";
+  import ClinicalFeedbackForm from "./ClinicalFeedbackForm.svelte";
   import Spinner from "./Spinner.svelte";
   import ActionButton from "./widgets/ActionButton.svelte";
   import Button from "./widgets/Button.svelte";
@@ -77,6 +78,7 @@ interface UploadSearchResultDetail {
     coordinator,
     data,
     initialState,
+    activeRoute = null,
     searcher: specifiedSearcher,
     searchColumns = null,
     embeddingViewConfig = null,
@@ -272,17 +274,36 @@ interface UploadSearchResultDetail {
   let searchQuery = $state("");
   let searcherStatus = $state("");
   let searchResultVisible = $state(false);
-  let searchResult: {
+  type SearchResultState = {
     label: string;
     highlight: string;
     items: SearchResultItem[];
-  } | null = $state(null);
+  };
+  let searchResult: SearchResultState | null = $state(null);
   let searchResultHighlight = $state<SearchResultItem | null>(null);
   let searchResultVisibleCount: number = $state(searchPageSize);
   let searchResultLoadingMore: boolean = $state(false);
   let searchResultFetchLimit: number = $state(searchPageSize);
   let searchResultBackendHasMore: boolean = $state(false);
   let lastSearchArgs = $state.raw<{ query: any; mode: "full-text" | "vector" | "neighbors" } | null>(null);
+  let isClinicalRoute = $derived((activeRoute ?? "").toLowerCase() === "clinical");
+  function countSearchResultItems(result: SearchResultState | null): number {
+    return result ? result.items.length : 0;
+  }
+  let clinicalSearchResultCount = $derived(countSearchResultItems(searchResult));
+  let shouldShowClinicalFeedback = $derived(
+    Boolean(
+      isClinicalRoute &&
+        searchResultVisible &&
+        lastSearchArgs?.mode === "neighbors" &&
+        clinicalSearchResultCount > 0,
+    ),
+  );
+  let clinicalSurveyKey = $derived(
+    shouldShowClinicalFeedback
+      ? `${lastSearchArgs?.mode ?? ""}:${String(lastSearchArgs?.query ?? "")}`
+      : "",
+  );
   let uploadSearchDetail = $state.raw<UploadSearchResultDetail | null>(null);
   let uploadSearchNeighborCount: number = $state(0);
   let uploadSearchHasMore: boolean = $state(false);
@@ -1530,6 +1551,15 @@ function clearSearch() {
                         bind:value={searchQuery}
                       />
                     </div>
+                  {/if}
+                  {#if shouldShowClinicalFeedback}
+                    {#key clinicalSurveyKey}
+                      <ClinicalFeedbackForm
+                        route={activeRoute}
+                        searchArgs={lastSearchArgs}
+                        searchResult={searchResult}
+                      />
+                    {/key}
                   {/if}
                 </div>
                 <div class={`flex-1 min-h-0 min-w-0 flex flex-col gap-3${showMainView ? "" : " overflow-y-auto"}`}>

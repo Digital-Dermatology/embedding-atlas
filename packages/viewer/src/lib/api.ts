@@ -61,6 +61,9 @@ export interface EmbeddingAtlasProps {
   /** Optional map of initial states keyed by URL path segment. */
   initialStateVariants?: Record<string, EmbeddingAtlasState> | null;
 
+  /** Active route key derived from the current URL path segment or query parameter. */
+  activeRoute?: string | null;
+
   /** Configuration for the embedding view. See docs for the EmbeddingView. */
   embeddingViewConfig?: EmbeddingViewConfig | null;
 
