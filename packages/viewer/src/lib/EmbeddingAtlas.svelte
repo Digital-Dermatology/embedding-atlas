@@ -1486,16 +1486,18 @@ function clearSearch() {
         <div
           class="flex flex-row gap-2 mr-2 mb-2 h-full"
           class:ml-2={!showMainView}
+          class:flex-1={!showMainView}
+          class:min-w-0={!showMainView}
         >
           {#if showNNPanel}
             <div
-              class="flex flex-col bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm overflow-hidden h-full"
+              class="flex flex-col bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm overflow-hidden h-full min-w-0"
               style:width={showMainView ? `${nnPanelWidth}px` : nnPanelFullWidth ? "100%" : null}
               class:flex-1={!showMainView}
               class:w-full={nnPanelFullWidth}
               transition:slide={{ axis: "x", duration: animationDuration }}
             >
-              <div class={`flex-1 min-h-0 flex gap-3 p-3 ${nnPanelLayoutClasses}`}>
+              <div class={`flex-1 min-h-0 min-w-0 flex gap-3 p-3 ${nnPanelLayoutClasses}`}>
                 <div class={`flex flex-col gap-3 ${nnPanelSidebarClasses}`}>
                   {#if uploadSearchConfig}
                     <ImageSearchWidget
@@ -1530,7 +1532,7 @@ function clearSearch() {
                     </div>
                   {/if}
                 </div>
-                <div class={`flex-1 min-h-0 flex flex-col gap-3${showMainView ? "" : " overflow-y-auto"}`}>
+                <div class={`flex-1 min-h-0 min-w-0 flex flex-col gap-3${showMainView ? "" : " overflow-y-auto"}`}>
                   {#if searcher && searchResultVisible}
                     <div class="flex-1 min-h-[12rem] rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm shadow-lg overflow-hidden flex flex-col">
                       {#if searchResult != null}
@@ -1606,7 +1608,7 @@ function clearSearch() {
               ></div>
             {/if}
             <div
-              class="flex flex-col bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm overflow-hidden h-full"
+              class="flex flex-col bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm overflow-hidden h-full min-w-0"
               style:width={showMainView ? `${widgetPanelWidth}px` : widgetPanelFullWidth ? "100%" : null}
               class:flex-1={!showMainView}
               class:w-full={widgetPanelFullWidth}
