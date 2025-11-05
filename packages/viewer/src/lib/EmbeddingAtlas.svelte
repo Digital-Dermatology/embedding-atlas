@@ -100,9 +100,10 @@ interface UploadSearchResultDetail {
 
   setImageAssets(assets?.images ?? null);
 
-  let uploadSearchConfig = $derived(uploadSearch);
-  let uploadSearchAvailable = $derived(uploadSearchConfig?.enabled === true);
+  let uploadSearchConfig = $derived(uploadSearch ?? { enabled: false, endpoint: "/data/upload-neighbors" });
   let uploadSearchEndpoint = $derived(uploadSearchConfig?.endpoint ?? "/data/upload-neighbors");
+  let uploadSearchAvailable = $derived(uploadSearchConfig?.enabled === true);
+  let showUploadSearchWidget = $derived(Boolean(uploadSearchConfig?.endpoint ?? true));
 
   onMount(() => {
     if (typeof window === "undefined") {
@@ -1214,6 +1215,17 @@ function clearSearch() {
     onStateChange?.(state);
   });
 
+  let ensuredSearchPanelVisible = false;
+  $effect(() => {
+    if (ensuredSearchPanelVisible || !initialized) {
+      return;
+    }
+    ensuredSearchPanelVisible = true;
+    if (!showNNPanel && allowNearestNeighborSearch) {
+      showNNPanel = true;
+    }
+  });
+
   // Load initial state.
   if (initialState) {
     loadState(initialState);
@@ -1520,7 +1532,7 @@ function clearSearch() {
             >
               <div class={`flex-1 min-h-0 min-w-0 flex gap-3 p-3 ${nnPanelLayoutClasses}`}>
                 <div class={`flex flex-col gap-3 ${nnPanelSidebarClasses}`}>
-                  {#if uploadSearchConfig}
+                  {#if showUploadSearchWidget}
                     <ImageSearchWidget
                       disabled={!uploadSearchAvailable}
                       endpoint={uploadSearchEndpoint}
@@ -1529,6 +1541,11 @@ function clearSearch() {
                       columns={columns}
                       on:result={handleImageSearchResult}
                     />
+                    {#if !uploadSearchAvailable}
+                      <div class="rounded-md border border-dashed border-slate-300 dark:border-slate-600 bg-slate-100/70 dark:bg-slate-800/50 text-xs text-slate-500 dark:text-slate-400 px-2 py-1.5">
+                        Image-based neighbor search is currently unavailable.
+                      </div>
+                    {/if}
                   {/if}
                   {#if searcher}
                     <div class="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm flex flex-col gap-3 p-3">
