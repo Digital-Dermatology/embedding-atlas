@@ -100,9 +100,15 @@ interface UploadSearchResultDetail {
 
   setImageAssets(assets?.images ?? null);
 
-  let uploadSearchConfig = $derived(uploadSearch ?? { enabled: false, endpoint: "/data/upload-neighbors" });
+  let uploadSearchConfig = $derived(uploadSearch ?? { endpoint: "/data/upload-neighbors" });
   let uploadSearchEndpoint = $derived(uploadSearchConfig?.endpoint ?? "/data/upload-neighbors");
-  let uploadSearchAvailable = $derived(uploadSearchConfig?.enabled === true);
+  let uploadSearchEnabledFlag = $derived(
+    uploadSearchConfig && typeof uploadSearchConfig === "object" && "enabled" in uploadSearchConfig
+      ? (uploadSearchConfig as { enabled?: boolean }).enabled
+      : undefined,
+  );
+  let uploadSearchAvailable = $derived(uploadSearchEnabledFlag !== false);
+  let uploadSearchWarning = $derived(uploadSearchEnabledFlag === false);
   let showUploadSearchWidget = $derived(Boolean(uploadSearchConfig?.endpoint ?? true));
 
   onMount(() => {
@@ -1541,7 +1547,7 @@ function clearSearch() {
                       columns={columns}
                       on:result={handleImageSearchResult}
                     />
-                    {#if !uploadSearchAvailable}
+                    {#if uploadSearchWarning}
                       <div class="rounded-md border border-dashed border-slate-300 dark:border-slate-600 bg-slate-100/70 dark:bg-slate-800/50 text-xs text-slate-500 dark:text-slate-400 px-2 py-1.5">
                         Image-based neighbor search is currently unavailable.
                       </div>
