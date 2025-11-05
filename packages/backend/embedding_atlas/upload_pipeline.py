@@ -48,6 +48,13 @@ def _iter_candidate_paths(config_path: Path, upload_cfg: dict[str, Any]) -> Iter
                 seen.add(key)
                 yield resolved
 
+    cwd_resolved = _safe_resolve(Path.cwd())
+    if cwd_resolved is not None and cwd_resolved.exists():
+        key = str(cwd_resolved)
+        if key not in seen:
+            seen.add(key)
+            yield cwd_resolved
+
 
 def _ensure_sys_path(config_path: Path, upload_cfg: dict[str, Any]) -> None:
     for candidate in _iter_candidate_paths(config_path, upload_cfg):
@@ -152,7 +159,8 @@ def create_upload_pipeline(
 
     try:
         pipeline = LazyCombinedEmbeddingPipeline(upload_cfg, path, device=device)
-    except Exception:  # pragma: no cover - LazyCombinedEmbeddingPipeline may raise during import
+    except Exception as exc:  # pragma: no cover - LazyCombinedEmbeddingPipeline may raise during import
+        logger.exception("Failed to initialize LazyCombinedEmbeddingPipeline: %s", exc)
         return None
 
     if eager:
