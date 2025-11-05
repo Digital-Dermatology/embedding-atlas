@@ -293,24 +293,49 @@ interface UploadSearchResultDetail {
   let searchResultFetchLimit: number = $state(searchPageSize);
   let searchResultBackendHasMore: boolean = $state(false);
   let lastSearchArgs = $state.raw<{ query: any; mode: "full-text" | "vector" | "neighbors" } | null>(null);
+  type ClinicalFeedbackContext =
+    | {
+        mode: "neighbors";
+        signature: string;
+        query: any;
+        queryDisplay: string;
+        uploadSummary: null;
+      }
+    | {
+        mode: "upload";
+        signature: string;
+        query: string;
+        queryDisplay: string;
+        uploadSummary: {
+          previewUrl: string | null;
+          filters: UploadSearchFilter[];
+          topK: number;
+        };
+      };
+
+  function generateSurveySignature(mode: string, identifier: string): string {
+    let unique: string;
+    try {
+      unique = typeof crypto !== "undefined" && typeof (crypto as any).randomUUID === "function"
+        ? (crypto as any).randomUUID()
+        : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    } catch {
+      unique = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    }
+    return `${mode}:${identifier}:${unique}`;
+  }
+
+  let clinicalFeedbackContext = $state.raw<ClinicalFeedbackContext | null>(null);
+
   let isClinicalRoute = $derived((activeRoute ?? "").toLowerCase() === "clinical");
   function countSearchResultItems(result: SearchResultState | null): number {
     return result ? result.items.length : 0;
   }
   let clinicalSearchResultCount = $derived(countSearchResultItems(searchResult));
   let shouldShowClinicalFeedback = $derived(
-    Boolean(
-      isClinicalRoute &&
-        searchResultVisible &&
-        lastSearchArgs?.mode === "neighbors" &&
-        clinicalSearchResultCount > 0,
-    ),
+    Boolean(isClinicalRoute && searchResultVisible && clinicalFeedbackContext != null && clinicalSearchResultCount > 0),
   );
-  let clinicalSurveyKey = $derived(
-    shouldShowClinicalFeedback
-      ? `${lastSearchArgs?.mode ?? ""}:${String(lastSearchArgs?.query ?? "")}`
-      : "",
-  );
+  let clinicalSurveyKey = $derived(shouldShowClinicalFeedback ? clinicalFeedbackContext?.signature ?? "" : "");
   let uploadSearchDetail = $state.raw<UploadSearchResultDetail | null>(null);
   let uploadSearchNeighborCount: number = $state(0);
   let uploadSearchHasMore: boolean = $state(false);
@@ -600,6 +625,17 @@ interface UploadSearchResultDetail {
     }
     uploadSearchNeighborCount = 0;
     lastSearchArgs = { query: effectiveQuery, mode: resolvedMode as "full-text" | "vector" | "neighbors" };
+    if (resolvedMode === "neighbors" && augmented.length > 0) {
+      clinicalFeedbackContext = {
+        mode: "neighbors",
+        signature: generateSurveySignature("neighbors", String(effectiveQuery ?? "")),
+        query: effectiveQuery,
+        queryDisplay: label,
+        uploadSummary: null,
+      };
+    } else if (resolvedMode !== "neighbors" || augmented.length === 0) {
+      clinicalFeedbackContext = null;
+    }
     if (resolvedMode === "neighbors") {
       if (neighborAnchorPoint != null) {
         uploadFocusPoint = neighborAnchorPoint;
@@ -955,6 +991,21 @@ async function handleImageSearchResult(detail: UploadSearchResultDetail) {
       : null;
   uploadSearchHasMore =
     uploadSearchDetail?.refetch != null && filteredNeighbors.length >= (uploadSearchDetail?.topK ?? 0);
+  if (items.length > 0) {
+    clinicalFeedbackContext = {
+      mode: "upload",
+      signature: generateSurveySignature("upload", payload?.previewUrl ?? "uploaded-image"),
+      query: "uploaded-image",
+      queryDisplay: "Uploaded image neighbors",
+      uploadSummary: {
+        previewUrl: payload?.previewUrl ?? null,
+        filters: filters,
+        topK: payload?.topK ?? desiredTopK,
+      },
+    };
+  } else {
+    clinicalFeedbackContext = null;
+  }
   if (queryPoint != null) {
     uploadFocusPoint = queryPoint;
     await animateEmbeddingViewToPoint(undefined, queryPoint.x, queryPoint.y);
@@ -1034,6 +1085,7 @@ function clearSearch() {
   uploadSearchDetail = null;
   uploadSearchNeighborCount = 0;
   uploadSearchHasMore = false;
+  clinicalFeedbackContext = null;
 }
 
   $effect.pre(() => {
@@ -1579,7 +1631,7 @@ function clearSearch() {
                     {#key clinicalSurveyKey}
                       <ClinicalFeedbackForm
                         route={activeRoute}
-                        searchArgs={lastSearchArgs}
+                        context={clinicalFeedbackContext}
                         searchResult={searchResult}
                       />
                     {/key}

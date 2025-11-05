@@ -1,13 +1,27 @@
 <script lang="ts">
   import type { SearchResultItem } from "./search.js";
 
+  interface ClinicalFeedbackContext {
+    mode: "neighbors" | "upload";
+    signature: string;
+    query: any;
+    queryDisplay: string;
+    uploadSummary:
+      | {
+          previewUrl: string | null;
+          filters: any[];
+          topK: number;
+        }
+      | null;
+  }
+
   interface Props {
     route: string | null;
-    searchArgs: { query: any; mode: "full-text" | "vector" | "neighbors" } | null;
+    context: ClinicalFeedbackContext | null;
     searchResult: { label: string; highlight: string; items: SearchResultItem[] } | null;
   }
 
-  let { route, searchArgs, searchResult }: Props = $props();
+  let { route, context, searchResult }: Props = $props();
 
   let benefitScore: number = $state(5);
   let differentialCorrect: "yes" | "no" | "" = $state("");
@@ -19,11 +33,8 @@
 
   let lastSignature: string | null = $state(null);
 
-  function signatureFor(args: Props["searchArgs"]): string | null {
-    if (!args) {
-      return null;
-    }
-    return `${args.mode}:${String(args.query ?? "")}`;
+  function signatureFor(value: ClinicalFeedbackContext | null): string | null {
+    return value?.signature ?? null;
   }
 
   function resetForm() {
@@ -37,7 +48,7 @@
   }
 
   $effect(() => {
-    const currentSignature = signatureFor(searchArgs);
+    const currentSignature = signatureFor(context);
     if (currentSignature !== lastSignature) {
       lastSignature = currentSignature;
       resetForm();
@@ -73,13 +84,13 @@
       submitError = "Add a comment or uncheck the comment box.";
       return;
     }
-    if (!searchArgs || searchArgs.mode !== "neighbors" || !searchResult || searchResult.items.length === 0) {
+    if (!context || !searchResult || searchResult.items.length === 0) {
       submitError = "Search details are unavailable. Please run the search again.";
       return;
     }
 
     const trimmedComment = wantsComment ? comment.trim() : "";
-    const signature = signatureFor(searchArgs);
+    const signature = signatureFor(context);
     const payload = {
       route,
       timestamp: new Date().toISOString(),
@@ -91,13 +102,14 @@
         comment: trimmedComment,
       },
       search: {
-        query: searchArgs.query,
-        queryDisplay: String(searchArgs.query ?? ""),
-        mode: searchArgs.mode,
+        query: context.query,
+        queryDisplay: context.queryDisplay,
+        mode: context.mode,
         label: searchResult.label,
         highlight: searchResult.highlight,
         totalResults: searchResult.items.length,
         topResults: extractTopResults(searchResult.items),
+        uploadSummary: context.uploadSummary ?? undefined,
       },
       userAgent: typeof navigator !== "undefined" ? navigator.userAgent : null,
       location: typeof window !== "undefined" ? window.location.href : null,
