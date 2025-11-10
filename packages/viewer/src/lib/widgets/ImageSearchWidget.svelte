@@ -27,6 +27,8 @@ interface $$Props {
   coordinator: Coordinator;
   table: string;
   columns?: ColumnDesc[];
+  uploadBlocked?: boolean;
+  uploadBlockedMessage?: string | null;
 }
 
 interface $$Events {
@@ -67,6 +69,8 @@ const {
   coordinator,
   table,
   columns = [] as ColumnDesc[],
+  uploadBlocked = false,
+  uploadBlockedMessage = null,
 } = $props();
 
 const MAX_AUTO_REFETCH_K = 5000;
@@ -86,10 +90,13 @@ let lastRequestK: number | null = null;
 let refetchInProgress = false;
 let lastQueryPoint: { x: number; y: number } | null = null;
 
-  let filterableColumns = $derived(
+let filterableColumns = $derived(
     columns.filter((col: ColumnDesc) => col.jsType === "string" || col.jsType === "string[]" || col.jsType === "number"),
   );
-  let columnOptions = $derived(filterableColumns.map((col: ColumnDesc) => ({ value: col.name, label: col.name })));
+let columnOptions = $derived(filterableColumns.map((col: ColumnDesc) => ({ value: col.name, label: col.name })));
+const resolvedUploadBlockedMessage = $derived(
+  uploadBlockedMessage ?? "Complete the clinical survey before uploading another case.",
+);
 
   function createEmptyFilterRow(): FilterRow {
     return {
@@ -482,6 +489,10 @@ let lastQueryPoint: { x: number; y: number } | null = null;
     if (disabled || file == null || uploading) {
       return;
     }
+    if (uploadBlocked) {
+      errorMessage = resolvedUploadBlockedMessage;
+      return;
+    }
     errorMessage = null;
     status = "Embedding image...";
     uploading = true;
@@ -511,6 +522,12 @@ let lastQueryPoint: { x: number; y: number } | null = null;
     <span class="text-base font-semibold text-slate-700 dark:text-slate-200">Image Neighbor Search</span>
     <span class="text-slate-500 dark:text-slate-400">Upload an image to find visually similar samples in SkinMap.</span>
   </div>
+
+  {#if uploadBlocked}
+    <div class="rounded-md border border-rose-300 dark:border-rose-500 bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 text-sm px-3 py-2">
+      {resolvedUploadBlockedMessage}
+    </div>
+  {/if}
 
   <label class="flex flex-col gap-2 text-slate-600 dark:text-slate-300">
     <span class="font-medium">Image File</span>

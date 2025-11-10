@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { createEventDispatcher } from "svelte";
   import type { SearchResultItem } from "./search.js";
 
   interface ClinicalFeedbackContext {
@@ -32,6 +33,7 @@
   let submitError: string | null = $state(null);
 
   let lastSignature: string | null = $state(null);
+  const dispatch = createEventDispatcher<{ submitted: { signature: string | null } }>();
 
   function signatureFor(value: ClinicalFeedbackContext | null): string | null {
     return value?.signature ?? null;
@@ -133,6 +135,7 @@
         throw new Error(message);
       }
       submitSuccess = true;
+      dispatch("submitted", { signature });
     } catch (error: any) {
       submitError = error?.message ?? "Failed to send feedback.";
     } finally {
@@ -146,11 +149,15 @@
   const submitButtonDisabled = $derived(submitting || submitSuccess);
 </script>
 
-<div class="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm flex flex-col gap-3 p-3">
-  <div class="text-sm font-semibold text-slate-600 dark:text-slate-300 select-none">Search Feedback</div>
+<div class="rounded-xl border border-emerald-700/80 bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-800 text-sm text-emerald-50 flex flex-col gap-4 p-4 shadow-xl shadow-emerald-900/40">
+  <div class="flex flex-col gap-1">
+    <span class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300/80 select-none">Clinical Survey</span>
+    <div class="text-lg font-semibold text-emerald-50">Search Feedback</div>
+    <p class="text-xs text-emerald-200/80">Required before you can upload the next case.</p>
+  </div>
   <form class="flex flex-col gap-4" onsubmit={handleSubmit}>
     <div class="flex flex-col gap-2">
-      <span class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+      <span class="text-xs font-medium uppercase tracking-wide text-emerald-200/80">
         1. Benefit of this search
       </span>
       <div class="flex items-center gap-3">
@@ -160,48 +167,48 @@
           max="10"
           step="1"
           bind:value={benefitScore}
-          class="flex-1 accent-slate-600 dark:accent-slate-300"
+          class="flex-1 accent-emerald-400"
           aria-label="Benefit of this search (1 to 10)"
         />
-        <span class="w-8 text-center text-sm font-semibold text-slate-600 dark:text-slate-200">
+        <span class="w-10 text-center text-base font-semibold text-emerald-50">
           {benefitScore}
         </span>
       </div>
-      <div class="text-xs text-slate-400 dark:text-slate-500">1 = not helpful, 10 = extremely helpful</div>
+      <div class="text-xs text-emerald-200/70">1 = not helpful, 10 = extremely helpful</div>
     </div>
     <div class="flex flex-col gap-2">
-      <span class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+      <span class="text-xs font-medium uppercase tracking-wide text-emerald-200/80">
         2. Differential diagnosis in the top 10?
       </span>
-      <div class="flex items-center gap-4">
-        <label class="inline-flex items-center gap-2 text-slate-600 dark:text-slate-300">
+      <div class="flex items-center gap-4 text-emerald-50">
+        <label class="inline-flex items-center gap-2">
           <input
             type="radio"
             name="clinical-feedback-dx"
             value="yes"
             bind:group={differentialCorrect}
-            class="h-4 w-4 accent-slate-600 dark:accent-slate-300"
+            class="h-4 w-4 accent-emerald-400"
           />
           <span>Yes</span>
         </label>
-        <label class="inline-flex items-center gap-2 text-slate-600 dark:text-slate-300">
+        <label class="inline-flex items-center gap-2">
           <input
             type="radio"
             name="clinical-feedback-dx"
             value="no"
             bind:group={differentialCorrect}
-            class="h-4 w-4 accent-slate-600 dark:accent-slate-300"
+            class="h-4 w-4 accent-emerald-400"
           />
           <span>No</span>
         </label>
       </div>
     </div>
-    <div class="flex flex-col gap-2">
-      <label class="inline-flex items-center gap-2 text-slate-600 dark:text-slate-300">
+    <div class="flex flex-col gap-2 text-emerald-50">
+      <label class="inline-flex items-center gap-2">
         <input
           type="checkbox"
           bind:checked={wantsComment}
-          class="h-4 w-4 rounded border-slate-300 dark:border-slate-600 accent-slate-600 dark:accent-slate-300"
+          class="h-4 w-4 rounded border border-emerald-500/60 bg-transparent accent-emerald-400"
         />
         <span>I want to say something about the search</span>
       </label>
@@ -209,21 +216,21 @@
         <textarea
           rows="3"
           bind:value={comment}
-          class="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm text-slate-600 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          class="w-full rounded-md border border-emerald-600 bg-emerald-950/60 text-sm text-emerald-50 placeholder:text-emerald-200/70 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
           placeholder="Share your thoughts..."
         ></textarea>
       {/if}
     </div>
     {#if submitError}
-      <div class="text-xs text-red-500 dark:text-red-400">{submitError}</div>
+      <div class="text-xs text-rose-200">{submitError}</div>
     {/if}
     {#if submitSuccess}
-      <div class="text-xs text-emerald-600 dark:text-emerald-400">Thanks for your feedback!</div>
+      <div class="text-xs text-emerald-200">Thanks for your feedback!</div>
     {/if}
     <div class="flex justify-end">
       <button
         type="submit"
-        class="px-3 py-1.5 rounded-md border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-60 disabled:cursor-not-allowed"
+        class="px-4 py-2 rounded-md border border-emerald-500 bg-emerald-400 text-sm font-semibold text-emerald-950 hover:bg-emerald-300 transition disabled:opacity-60 disabled:cursor-not-allowed"
         disabled={submitButtonDisabled}
       >
         {submitButtonLabel}

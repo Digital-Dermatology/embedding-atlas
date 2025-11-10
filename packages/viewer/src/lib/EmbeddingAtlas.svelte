@@ -336,6 +336,42 @@ interface UploadSearchResultDetail {
     Boolean(isClinicalRoute && searchResultVisible && clinicalFeedbackContext != null && clinicalSearchResultCount > 0),
   );
   let clinicalSurveyKey = $derived(shouldShowClinicalFeedback ? clinicalFeedbackContext?.signature ?? "" : "");
+  let clinicalSurveyPending = $state(false);
+  let activeClinicalSurveySignature = $state<string | null>(null);
+  let completedClinicalSurveySignature = $state<string | null>(null);
+  const clinicalUploadBlockMessage = "Complete the clinical survey before uploading another case.";
+  let clinicalUploadBlocked = $derived(Boolean(isClinicalRoute && clinicalSurveyPending));
+
+  $effect(() => {
+    const nextSignature =
+      shouldShowClinicalFeedback && isClinicalRoute && clinicalFeedbackContext?.mode === "upload"
+        ? clinicalFeedbackContext.signature
+        : null;
+
+    if (nextSignature == null) {
+      activeClinicalSurveySignature = null;
+      completedClinicalSurveySignature = null;
+      clinicalSurveyPending = false;
+      return;
+    }
+
+    if (nextSignature !== activeClinicalSurveySignature) {
+      activeClinicalSurveySignature = nextSignature;
+      completedClinicalSurveySignature = null;
+      clinicalSurveyPending = true;
+      return;
+    }
+
+    clinicalSurveyPending = completedClinicalSurveySignature === nextSignature ? false : true;
+  });
+
+  function handleClinicalSurveySubmitted(event: CustomEvent<{ signature: string | null }>) {
+    const signature = event.detail?.signature ?? clinicalFeedbackContext?.signature ?? null;
+    completedClinicalSurveySignature = signature;
+    if (signature != null && signature === activeClinicalSurveySignature) {
+      clinicalSurveyPending = false;
+    }
+  }
   let uploadSearchDetail = $state.raw<UploadSearchResultDetail | null>(null);
   let uploadSearchNeighborCount: number = $state(0);
   let uploadSearchHasMore: boolean = $state(false);
@@ -1597,6 +1633,8 @@ function clearSearch() {
                       coordinator={coordinator}
                       table={data.table}
                       columns={columns}
+                      uploadBlocked={clinicalUploadBlocked}
+                      uploadBlockedMessage={clinicalUploadBlockMessage}
                       on:result={handleImageSearchResult}
                     />
                     {#if uploadSearchWarning}
@@ -1633,6 +1671,7 @@ function clearSearch() {
                         route={activeRoute}
                         context={clinicalFeedbackContext}
                         searchResult={searchResult}
+                        on:submitted={handleClinicalSurveySubmitted}
                       />
                     {/key}
                   {/if}
