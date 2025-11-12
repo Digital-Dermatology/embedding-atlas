@@ -210,6 +210,51 @@ def make_server(
 
         return None, None
 
+    def _extract_client_ip_chain(req: Request) -> list[str]:
+        """Return ordered list of IP-like values derived from proxy headers."""
+        addresses: list[str] = []
+        seen: set[str] = set()
+
+        def _add(raw_value):
+            if not raw_value:
+                return
+            cleaned = str(raw_value).strip().strip('"').strip("'")
+            if not cleaned:
+                return
+            if cleaned.startswith("[") and "]" in cleaned:
+                closing = cleaned.find("]")
+                if closing > 0:
+                    cleaned = cleaned[1:closing]
+            if ":" in cleaned and cleaned.count(":") == 1 and "." in cleaned:
+                host, port = cleaned.split(":", 1)
+                if host and port.isdigit():
+                    cleaned = host
+            if cleaned and cleaned not in seen:
+                seen.add(cleaned)
+                addresses.append(cleaned)
+
+        forwarded_for = req.headers.get("x-forwarded-for")
+        if forwarded_for:
+            for part in forwarded_for.split(","):
+                _add(part)
+
+        forwarded = req.headers.get("forwarded")
+        if forwarded:
+            for entry in forwarded.split(","):
+                for segment in entry.split(";"):
+                    key, _, value = segment.partition("=")
+                    if key.strip().lower() == "for":
+                        _add(value)
+                        break
+
+        for header_name in ("x-real-ip", "cf-connecting-ip", "true-client-ip"):
+            _add(req.headers.get(header_name))
+
+        if req.client and req.client.host:
+            _add(req.client.host)
+
+        return addresses
+
     @app.get("/data/metadata.json")
     async def get_metadata():
         if duckdb_uri is None or duckdb_uri == "wasm":
@@ -251,11 +296,13 @@ def make_server(
             return JSONResponse({"error": "Invalid JSON payload."}, status_code=400)
         if not isinstance(payload, dict):
             return JSONResponse({"error": "Invalid feedback payload."}, status_code=400)
+        client_ips = _extract_client_ip_chain(request)
         record = {
             "id": str(uuid.uuid4()),
             "dataset": data_source.identifier,
             "receivedAt": datetime.now(timezone.utc).isoformat(),
-            "client": request.client.host if request.client else None,
+            "client": client_ips[0] if client_ips else None,
+            "clientIps": client_ips,
             "route": payload.get("route"),
             "payload": payload,
         }
