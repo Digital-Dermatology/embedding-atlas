@@ -63,7 +63,7 @@ interface FilterRow {
 
 const dispatch = createEventDispatcher<$$Events>();
 
-const {
+let {
   disabled = false,
   endpoint = "/data/upload-neighbors",
   coordinator,
