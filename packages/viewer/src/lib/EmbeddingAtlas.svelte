@@ -342,11 +342,13 @@ interface UploadSearchResultDetail {
   const clinicalUploadBlockMessage = "Complete the clinical survey before uploading another case.";
   let clinicalUploadBlocked = $derived(Boolean(isClinicalRoute && clinicalSurveyPending));
 
+  // Track an outstanding clinical survey request for uploads. Keep the request
+  // active until the matching survey is submitted, even if the search panel is
+  // cleared, so repeated uploads stay blocked.
   $effect(() => {
-    const nextSignature =
-      shouldShowClinicalFeedback && isClinicalRoute && clinicalFeedbackContext?.mode === "upload"
-        ? clinicalFeedbackContext.signature
-        : null;
+    const signatureFromContext =
+      clinicalFeedbackContext?.mode === "upload" ? clinicalFeedbackContext.signature : activeClinicalSurveySignature;
+    const nextSignature = isClinicalRoute ? signatureFromContext : null;
 
     if (nextSignature == null) {
       activeClinicalSurveySignature = null;
@@ -362,7 +364,7 @@ interface UploadSearchResultDetail {
       return;
     }
 
-    clinicalSurveyPending = completedClinicalSurveySignature === nextSignature ? false : true;
+    clinicalSurveyPending = completedClinicalSurveySignature !== nextSignature;
   });
 
   function handleClinicalSurveySubmitted(event: CustomEvent<{ signature: string | null }>) {
