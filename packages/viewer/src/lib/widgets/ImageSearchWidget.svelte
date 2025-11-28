@@ -81,6 +81,7 @@ let status: string = $state("");
 let errorMessage: string | null = $state(null);
 let uploading: boolean = $state(false);
 let topK: number = $state(50);
+let uploadBlockedNotice: string | null = $state(null);
 
 let filters: FilterRow[] = $state.raw([]);
 let filterChangeTimer: any = null;
@@ -116,11 +117,26 @@ const resolvedUploadBlockedMessage = $derived(
     };
   }
 
+  $effect(() => {
+    if (!uploadBlocked) {
+      uploadBlockedNotice = null;
+    }
+  });
+
   function resetPreview() {
     if (previewUrl != null) {
       URL.revokeObjectURL(previewUrl);
     }
     previewUrl = null;
+  }
+
+  function onFileClick(event: MouseEvent) {
+    if (!uploadBlocked) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    uploadBlockedNotice = resolvedUploadBlockedMessage;
   }
 
   function onFileChange(event: Event) {
@@ -490,7 +506,7 @@ const resolvedUploadBlockedMessage = $derived(
       return;
     }
     if (uploadBlocked) {
-      errorMessage = resolvedUploadBlockedMessage;
+      uploadBlockedNotice = resolvedUploadBlockedMessage;
       return;
     }
     errorMessage = null;
@@ -523,9 +539,9 @@ const resolvedUploadBlockedMessage = $derived(
     <span class="text-slate-500 dark:text-slate-400">Upload an image to find visually similar samples in SkinMap.</span>
   </div>
 
-  {#if uploadBlocked}
+  {#if uploadBlockedNotice}
     <div class="rounded-md border border-rose-300 dark:border-rose-500 bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 text-sm px-3 py-2">
-      {resolvedUploadBlockedMessage}
+      {uploadBlockedNotice}
     </div>
   {/if}
 
@@ -536,6 +552,7 @@ const resolvedUploadBlockedMessage = $derived(
       type="file"
       accept="image/*"
       onchange={onFileChange}
+      onclick={onFileClick}
       disabled={disabled || uploading}
     />
   </label>
