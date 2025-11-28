@@ -336,42 +336,14 @@ interface UploadSearchResultDetail {
     Boolean(isClinicalRoute && searchResultVisible && clinicalFeedbackContext != null && clinicalSearchResultCount > 0),
   );
   let clinicalSurveyKey = $derived(shouldShowClinicalFeedback ? clinicalFeedbackContext?.signature ?? "" : "");
-  let clinicalSurveyPending = $state(false);
-  let activeClinicalSurveySignature = $state<string | null>(null);
-  let completedClinicalSurveySignature = $state<string | null>(null);
+  let pendingUploadSurveySignature = $state<string | null>(null);
   const clinicalUploadBlockMessage = "Complete the clinical survey before uploading another case.";
-  let clinicalUploadBlocked = $derived(Boolean(isClinicalRoute && clinicalSurveyPending));
-
-  // Track an outstanding clinical survey request for uploads. Keep the request
-  // active until the matching survey is submitted, even if the search panel is
-  // cleared, so repeated uploads stay blocked.
-  $effect(() => {
-    const signatureFromContext =
-      clinicalFeedbackContext?.mode === "upload" ? clinicalFeedbackContext.signature : activeClinicalSurveySignature;
-    const nextSignature = isClinicalRoute ? signatureFromContext : null;
-
-    if (nextSignature == null) {
-      activeClinicalSurveySignature = null;
-      completedClinicalSurveySignature = null;
-      clinicalSurveyPending = false;
-      return;
-    }
-
-    if (nextSignature !== activeClinicalSurveySignature) {
-      activeClinicalSurveySignature = nextSignature;
-      completedClinicalSurveySignature = null;
-      clinicalSurveyPending = true;
-      return;
-    }
-
-    clinicalSurveyPending = completedClinicalSurveySignature !== nextSignature;
-  });
+  let clinicalUploadBlocked = $derived(Boolean(isClinicalRoute && pendingUploadSurveySignature != null));
 
   function handleClinicalSurveySubmitted(event: CustomEvent<{ signature: string | null }>) {
     const signature = event.detail?.signature ?? clinicalFeedbackContext?.signature ?? null;
-    completedClinicalSurveySignature = signature;
-    if (signature != null && signature === activeClinicalSurveySignature) {
-      clinicalSurveyPending = false;
+    if (signature != null && signature === pendingUploadSurveySignature) {
+      pendingUploadSurveySignature = null;
     }
   }
   let uploadSearchDetail = $state.raw<UploadSearchResultDetail | null>(null);
@@ -1030,9 +1002,10 @@ async function handleImageSearchResult(detail: UploadSearchResultDetail) {
   uploadSearchHasMore =
     uploadSearchDetail?.refetch != null && filteredNeighbors.length >= (uploadSearchDetail?.topK ?? 0);
   if (items.length > 0) {
+    const signature = generateSurveySignature("upload", payload?.previewUrl ?? "uploaded-image");
     clinicalFeedbackContext = {
       mode: "upload",
-      signature: generateSurveySignature("upload", payload?.previewUrl ?? "uploaded-image"),
+      signature: signature,
       query: "uploaded-image",
       queryDisplay: "Uploaded image neighbors",
       uploadSummary: {
@@ -1041,8 +1014,10 @@ async function handleImageSearchResult(detail: UploadSearchResultDetail) {
         topK: payload?.topK ?? desiredTopK,
       },
     };
+    pendingUploadSurveySignature = signature;
   } else {
     clinicalFeedbackContext = null;
+    pendingUploadSurveySignature = null;
   }
   if (queryPoint != null) {
     uploadFocusPoint = queryPoint;
