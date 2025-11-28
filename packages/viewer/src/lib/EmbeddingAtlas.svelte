@@ -333,11 +333,7 @@ interface UploadSearchResultDetail {
   }
   let clinicalSearchResultCount = $derived(countSearchResultItems(searchResult));
   let shouldShowClinicalFeedback = $derived(
-    Boolean(
-      isClinicalRoute &&
-        clinicalFeedbackContext != null &&
-        (clinicalFeedbackContext.mode === "upload" || (searchResultVisible && clinicalSearchResultCount > 0)),
-    ),
+    Boolean(isClinicalRoute && searchResultVisible && clinicalFeedbackContext != null && clinicalSearchResultCount > 0),
   );
   let clinicalSurveyKey = $derived(shouldShowClinicalFeedback ? clinicalFeedbackContext?.signature ?? "" : "");
   let pendingUploadSurveySignature = $state<string | null>(null);
