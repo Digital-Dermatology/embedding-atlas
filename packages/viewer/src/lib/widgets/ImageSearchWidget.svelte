@@ -523,12 +523,6 @@ function onFileChange(event: Event) {
     <span class="text-slate-500 dark:text-slate-400">Upload an image to find visually similar samples in SkinMap.</span>
   </div>
 
-  {#if uploadBlocked}
-    <div class="rounded-md border border-rose-300 dark:border-rose-500 bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 text-sm px-3 py-2">
-      {resolvedUploadBlockedMessage}
-    </div>
-  {/if}
-
   <label class="flex flex-col gap-2 text-slate-600 dark:text-slate-300">
     <span class="font-medium">Image File</span>
     <input
