@@ -116,18 +116,27 @@ const resolvedUploadBlockedMessage = $derived(
     };
   }
 
-function resetPreview() {
-  if (previewUrl != null) {
-    URL.revokeObjectURL(previewUrl);
+  function resetPreview() {
+    if (previewUrl != null) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    previewUrl = null;
   }
-  previewUrl = null;
-}
 
-function onFileChange(event: Event) {
-  const target = event.target as HTMLInputElement;
-  if (!target.files || target.files.length === 0) {
-    file = null;
-    resetPreview();
+  function onFileClick(event: MouseEvent) {
+    if (!uploadBlocked) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    errorMessage = resolvedUploadBlockedMessage;
+  }
+
+  function onFileChange(event: Event) {
+    const target = event.target as HTMLInputElement;
+    if (!target.files || target.files.length === 0) {
+      file = null;
+      resetPreview();
       return;
     }
     file = target.files[0];
@@ -530,6 +539,7 @@ function onFileChange(event: Event) {
       type="file"
       accept="image/*"
       onchange={onFileChange}
+      onclick={onFileClick}
       disabled={disabled || uploading}
     />
   </label>
