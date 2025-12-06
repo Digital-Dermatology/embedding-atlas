@@ -395,6 +395,82 @@ def make_server(
             query_point = {"x": float(coords[0]), "y": float(coords[1])}
         return JSONResponse({"neighbors": neighbors, "query": query_point})
 
+    @app.post("/data/upload-embeddings")
+    async def upload_embeddings(files: list[UploadFile] = File(...)):
+        if upload_pipeline is None:
+            return JSONResponse({"error": "Upload embedding unavailable."}, status_code=404)
+
+        if files is None or len(files) == 0:
+            return JSONResponse({"error": "No files uploaded."}, status_code=400)
+
+        try:
+            max_items = max(1, int(os.environ.get("ATLAS_UPLOAD_BATCH_LIMIT", "64")))
+        except ValueError:
+            max_items = 64
+
+        selected_files = list(files)[:max_items]
+        truncated = len(files) > len(selected_files)
+
+        points: list[dict[str, object]] = []
+        errors: list[dict[str, str]] = []
+
+        for index, file in enumerate(selected_files):
+            label = file.filename or f"sample-{index + 1}"
+            try:
+                contents = await file.read()
+            except Exception as exc:
+                errors.append({"label": label, "message": f"Failed to read upload: {exc}"})
+                continue
+
+            try:
+                vector = upload_pipeline.embed_bytes(contents)
+            except Exception as exc:
+                errors.append({"label": label, "message": f"Failed to embed: {exc}"})
+                continue
+
+            coords = None
+            try:
+                coords = upload_pipeline.project_vector(vector)
+            except Exception:
+                coords = None
+
+            if coords is None and upload_projection_model is not None:
+                try:
+                    transformed = upload_projection_model.transform(
+                        vector.reshape(1, -1)
+                    )
+                    if getattr(transformed, "ndim", 0) >= 2:
+                        transformed = transformed[0]
+                    coords = transformed
+                except Exception:
+                    coords = None
+
+            if coords is None or len(coords) < 2:
+                errors.append({"label": label, "message": "Embedding did not produce coordinates."})
+                continue
+
+            x_value = float(coords[0])
+            y_value = float(coords[1])
+            if not np.isfinite(x_value) or not np.isfinite(y_value):
+                errors.append({"label": label, "message": "Non-finite coordinates returned."})
+                continue
+
+            points.append(
+                {
+                    "id": uuid.uuid4().hex,
+                    "label": label,
+                    "x": x_value,
+                    "y": y_value,
+                    "order": index,
+                }
+            )
+
+        response: dict[str, object] = {"points": points, "errors": errors}
+        if truncated:
+            response["truncated"] = True
+            response["limit"] = len(selected_files)
+        return JSONResponse(response)
+
     @app.get("/data/point-neighbors")
     async def point_neighbors(id: str, k: int = 50):
         if (

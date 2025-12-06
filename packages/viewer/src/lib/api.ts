@@ -103,6 +103,8 @@ export interface EmbeddingAtlasProps {
   uploadSearch?: {
     enabled: boolean;
     endpoint?: string;
+    /** Optional endpoint for batch embeddings (multiple uploads at once). */
+    batchEndpoint?: string;
   } | null;
 }
 

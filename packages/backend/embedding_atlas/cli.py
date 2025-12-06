@@ -565,6 +565,7 @@ def main(
             metadata["uploadSearch"] = {
                 "enabled": True,
                 "endpoint": "upload-neighbors",
+                "batchEndpoint": "upload-embeddings",
             }
             logger.info("Upload pipeline enabled.")
             if vector is not None and vector in df.columns:

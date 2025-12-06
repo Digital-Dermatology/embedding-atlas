@@ -18,6 +18,7 @@
   import Spinner from "./Spinner.svelte";
   import ActionButton from "./widgets/ActionButton.svelte";
   import Button from "./widgets/Button.svelte";
+  import DatasetUploadWidget from "./widgets/DatasetUploadWidget.svelte";
   import ImageSearchWidget from "./widgets/ImageSearchWidget.svelte";
   import Input from "./widgets/Input.svelte";
   import PopupButton from "./widgets/PopupButton.svelte";
@@ -40,7 +41,7 @@
   import type { EmbeddingAtlasProps, EmbeddingAtlasState } from "./api.js";
   import { EMBEDDING_ATLAS_VERSION } from "./constants.js";
   import { Context } from "./contexts.js";
-  import { CustomOverlay, CustomTooltip } from "./custom_components.js";
+  import { CombinedOverlay, CustomTooltip } from "./custom_components.js";
   import { makeDarkModeStore } from "./dark_mode_store.js";
   import { predicateToString, TableInfo, type ColumnDesc, type EmbeddingLegend } from "./database_utils.js";
   import { setImageAssets } from "./image_utils.js";
@@ -49,6 +50,7 @@
   import { PlotStateStoreManager } from "./plots/plot_state_store.js";
   import { getRenderer, type ColumnStyle } from "./renderers/index.js";
   import { querySearchResultItems, resolveSearcher, type SearchResultItem } from "./search.js";
+  import type { UploadedSamplePoint } from "./UploadedSamplesOverlay.svelte";
   import { tableTheme } from "./table_theme.js";
   import { debounce, startDrag } from "./utils.js";
   import skinmapLogo from "../assets/atlas.png";
@@ -100,8 +102,14 @@ interface UploadSearchResultDetail {
 
   setImageAssets(assets?.images ?? null);
 
-  let uploadSearchConfig = $derived(uploadSearch ?? { endpoint: "/data/upload-neighbors" });
-  let uploadSearchEndpoint = $derived(uploadSearchConfig?.endpoint ?? "/data/upload-neighbors");
+  const defaultUploadConfig: NonNullable<EmbeddingAtlasProps["uploadSearch"]> = {
+    enabled: true,
+    endpoint: "/data/upload-neighbors",
+    batchEndpoint: "/data/upload-embeddings",
+  };
+  let uploadSearchConfig = $derived(uploadSearch ?? defaultUploadConfig);
+  let uploadSearchEndpoint = $derived(uploadSearchConfig?.endpoint ?? defaultUploadConfig.endpoint);
+  let uploadEmbeddingEndpoint = $derived(uploadSearchConfig?.batchEndpoint ?? defaultUploadConfig.batchEndpoint);
   let uploadSearchEnabledFlag = $derived(
     uploadSearchConfig && typeof uploadSearchConfig === "object" && "enabled" in uploadSearchConfig
       ? (uploadSearchConfig as { enabled?: boolean }).enabled
@@ -110,6 +118,7 @@ interface UploadSearchResultDetail {
   let uploadSearchAvailable = $derived(uploadSearchEnabledFlag !== false);
   let uploadSearchWarning = $derived(uploadSearchEnabledFlag === false);
   let showUploadSearchWidget = $derived(Boolean(uploadSearchConfig?.endpoint ?? true));
+  let showBatchUploadWidget = $derived(Boolean(uploadEmbeddingEndpoint));
 
   onMount(() => {
     if (typeof window === "undefined") {
@@ -350,6 +359,9 @@ interface UploadSearchResultDetail {
   let uploadSearchNeighborCount: number = $state(0);
   let uploadSearchHasMore: boolean = $state(false);
   let uploadFocusPoint: { x: number; y: number } | null = $state(null);
+  type BatchUploadError = { label: string; message: string };
+  let uploadedSamples: UploadedSamplePoint[] = $state.raw([]);
+  let uploadedSamplesHighlightId: string | null = $state(null);
 
   const NEIGHBOR_GROUP_COLUMN = "condition";
   const UNKNOWN_CONDITION_LABEL = "Unknown condition";
@@ -1033,6 +1045,55 @@ async function handleImageSearchResult(detail: UploadSearchResultDetail) {
   searchResultLoadingMore = false;
 }
 
+function computeUploadedSamplesFocus(points: UploadedSamplePoint[]): { x: number; y: number } | null {
+  const valid = points.filter(
+    (p) => p != null && Number.isFinite(p.x) && Number.isFinite(p.y),
+  );
+  if (valid.length === 0) {
+    return null;
+  }
+  const total = valid.reduce(
+    (acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }),
+    { x: 0, y: 0 },
+  );
+  return {
+    x: total.x / valid.length,
+    y: total.y / valid.length,
+  };
+}
+
+function clearUploadedSamples() {
+  uploadedSamples = [];
+  uploadedSamplesHighlightId = null;
+}
+
+async function handleDatasetEmbeddingResult(detail: {
+  points?: UploadedSamplePoint[];
+  errors?: BatchUploadError[];
+  truncated?: boolean;
+}) {
+  const points = Array.isArray(detail?.points) ? detail.points : [];
+  uploadedSamples = points;
+  uploadedSamplesHighlightId = points[0]?.id ?? null;
+  const focus = computeUploadedSamplesFocus(points);
+  if (focus != null) {
+    await animateEmbeddingViewToPoint(undefined, focus.x, focus.y);
+  }
+}
+
+async function handleDatasetSampleSelect(detail: { point: UploadedSamplePoint }) {
+  const point = detail?.point;
+  if (point == null || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+    return;
+  }
+  uploadedSamplesHighlightId = point.id;
+  await animateEmbeddingViewToPoint(undefined, point.x, point.y);
+}
+
+function handleDatasetClear() {
+  clearUploadedSamples();
+}
+
 async function loadMoreSearchResults() {
   if (searchResult == null || searchResultLoadingMore) {
     return;
@@ -1510,15 +1571,17 @@ function clearSearch() {
                       : null,
                   },
                 }}
-                customOverlay={searchResult
+                customOverlay={searchResult || uploadedSamples.length > 0
                   ? {
-                      class: CustomOverlay,
+                      class: CombinedOverlay,
                       props: {
-                        items: searchResult.items,
+                        items: searchResult?.items ?? [],
                         highlightItem: searchResultHighlight,
                         focusPoint: uploadFocusPoint,
                         groupMode: groupNeighborsByCondition && activeNeighborGroup == null,
                         groupColors: neighborGroupColors,
+                        uploadedPoints: uploadedSamples,
+                        uploadedHighlightId: uploadedSamplesHighlightId,
                       },
                     }
                   : null}
@@ -1619,6 +1682,17 @@ function clearSearch() {
                         Image-based neighbor search is currently unavailable.
                       </div>
                     {/if}
+                  {/if}
+                  {#if showBatchUploadWidget}
+                    <DatasetUploadWidget
+                      disabled={!uploadSearchAvailable}
+                      endpoint={uploadEmbeddingEndpoint}
+                      uploadBlocked={clinicalUploadBlocked}
+                      uploadBlockedMessage={clinicalUploadBlockMessage}
+                      on:result={handleDatasetEmbeddingResult}
+                      on:select={handleDatasetSampleSelect}
+                      on:clear={handleDatasetClear}
+                    />
                   {/if}
                   {#if searcher}
                     <div class="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm flex flex-col gap-3 p-3">
