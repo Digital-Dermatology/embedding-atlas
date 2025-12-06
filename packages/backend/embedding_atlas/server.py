@@ -63,13 +63,22 @@ def make_server(
         lambda: to_parquet_bytes(data_source.dataset),
     )
 
-    metadata_props = data_source.metadata.get("props", {}) if isinstance(data_source.metadata, dict) else {}
-    data_meta = metadata_props.get("data", {}) if isinstance(metadata_props, dict) else {}
+    metadata_props = (
+        data_source.metadata.get("props", {})
+        if isinstance(data_source.metadata, dict)
+        else {}
+    )
+    data_meta = (
+        metadata_props.get("data", {}) if isinstance(metadata_props, dict) else {}
+    )
     id_column = id_column or data_meta.get("id")
     dataset_df = data_source.dataset
     feedback_lock = threading.Lock()
     total_rows = len(dataset_df)
-    if vector_neighbor_column is not None and vector_neighbor_column not in dataset_df.columns:
+    if (
+        vector_neighbor_column is not None
+        and vector_neighbor_column not in dataset_df.columns
+    ):
         vector_neighbor_column = None
     try:
         max_neighbor_results = max(1, int(max_neighbor_results))
@@ -100,7 +109,11 @@ def make_server(
         return ".bin"
 
     def _persist_query_images(record_id: str, row) -> list[dict[str, str]]:
-        if row is None or data_source.image_assets is None or len(data_source.image_assets) == 0:
+        if (
+            row is None
+            or data_source.image_assets is None
+            or len(data_source.image_assets) == 0
+        ):
             return []
         images: list[dict[str, str]] = []
         base_dir = data_source.feedback_path / "query-images" / record_id
@@ -306,7 +319,9 @@ def make_server(
             "route": payload.get("route"),
             "payload": payload,
         }
-        search_meta = payload.get("search", {}) if isinstance(payload.get("search"), dict) else {}
+        search_meta = (
+            payload.get("search", {}) if isinstance(payload.get("search"), dict) else {}
+        )
         query_value = search_meta.get("query")
         query_row_index = None
         query_row = None
@@ -323,7 +338,11 @@ def make_server(
                     query_row = None
         if query_row_index is not None:
             record["queryRowIndex"] = query_row_index
-            if id_column is not None and query_row is not None and id_column in query_row.index:
+            if (
+                id_column is not None
+                and query_row is not None
+                and id_column in query_row.index
+            ):
                 record["queryRowId"] = _json_scalar(query_row[id_column])
         try:
             with feedback_lock:
@@ -344,24 +363,34 @@ def make_server(
     @app.post("/data/upload-neighbors")
     async def upload_neighbors(file: UploadFile = File(...), k: int = 16):
         if upload_pipeline is None:
-            return JSONResponse({"error": "Upload search unavailable."}, status_code=404)
+            return JSONResponse(
+                {"error": "Upload search unavailable."}, status_code=404
+            )
 
         try:
             contents = await file.read()
         except Exception as exc:
-            return JSONResponse({"error": f"Failed to read upload: {exc}"}, status_code=400)
+            return JSONResponse(
+                {"error": f"Failed to read upload: {exc}"}, status_code=400
+            )
 
         vector = None
         try:
             vector = upload_pipeline.embed_bytes(contents)
         except Exception as exc:
-            return JSONResponse({"error": f"Failed to embed image: {exc}"}, status_code=500)
+            return JSONResponse(
+                {"error": f"Failed to embed image: {exc}"}, status_code=500
+            )
 
         search_limit = max(1, min(k, 1000))
         try:
-            indices, distances = upload_pipeline.find_nearest_neighbors(vector, k=search_limit)
+            indices, distances = upload_pipeline.find_nearest_neighbors(
+                vector, k=search_limit
+            )
         except Exception as exc:
-            return JSONResponse({"error": f"Failed to process image: {exc}"}, status_code=500)
+            return JSONResponse(
+                {"error": f"Failed to process image: {exc}"}, status_code=500
+            )
 
         neighbors = []
         for idx, dist in zip(indices, distances):
@@ -398,7 +427,9 @@ def make_server(
     @app.post("/data/upload-embeddings")
     async def upload_embeddings(files: list[UploadFile] = File(...)):
         if upload_pipeline is None:
-            return JSONResponse({"error": "Upload embedding unavailable."}, status_code=404)
+            return JSONResponse(
+                {"error": "Upload embedding unavailable."}, status_code=404
+            )
 
         if files is None or len(files) == 0:
             return JSONResponse({"error": "No files uploaded."}, status_code=400)
@@ -419,7 +450,9 @@ def make_server(
             try:
                 contents = await file.read()
             except Exception as exc:
-                errors.append({"label": label, "message": f"Failed to read upload: {exc}"})
+                errors.append(
+                    {"label": label, "message": f"Failed to read upload: {exc}"}
+                )
                 continue
 
             try:
@@ -446,13 +479,20 @@ def make_server(
                     coords = None
 
             if coords is None or len(coords) < 2:
-                errors.append({"label": label, "message": "Embedding did not produce coordinates."})
+                errors.append(
+                    {
+                        "label": label,
+                        "message": "Embedding did not produce coordinates.",
+                    }
+                )
                 continue
 
             x_value = float(coords[0])
             y_value = float(coords[1])
             if not np.isfinite(x_value) or not np.isfinite(y_value):
-                errors.append({"label": label, "message": "Non-finite coordinates returned."})
+                errors.append(
+                    {"label": label, "message": "Non-finite coordinates returned."}
+                )
                 continue
 
             points.append(
@@ -479,7 +519,9 @@ def make_server(
             or id_column is None
             or id_column not in dataset_df.columns
         ):
-            return JSONResponse({"error": "Point neighbor search unavailable."}, status_code=404)
+            return JSONResponse(
+                {"error": "Point neighbor search unavailable."}, status_code=404
+            )
 
         try:
             limit = max(1, min(int(k), max_neighbor_results))
@@ -488,7 +530,9 @@ def make_server(
 
         row_index, actual_identifier = _locate_row_by_identifier(id)
         if row_index is None:
-            return JSONResponse({"error": f"Identifier '{identifier}' not found."}, status_code=404)
+            return JSONResponse(
+                {"error": f"Identifier '{identifier}' not found."}, status_code=404
+            )
 
         try:
             vector_value = dataset_df.at[row_index, vector_neighbor_column]
@@ -498,16 +542,22 @@ def make_server(
         try:
             vector = np.asarray(vector_value, dtype=np.float32).reshape(-1)
         except Exception as exc:
-            return JSONResponse({"error": f"Failed to load vector: {exc}"}, status_code=500)
+            return JSONResponse(
+                {"error": f"Failed to load vector: {exc}"}, status_code=500
+            )
 
         if vector.size == 0:
             return JSONResponse({"error": "Vector column is empty."}, status_code=500)
 
         neighbors_k = min(limit + 1, max_neighbor_results + 1, total_rows)
         try:
-            indices, distances = upload_pipeline.find_nearest_neighbors(vector, k=neighbors_k)
+            indices, distances = upload_pipeline.find_nearest_neighbors(
+                vector, k=neighbors_k
+            )
         except Exception as exc:
-            return JSONResponse({"error": f"Failed to compute neighbors: {exc}"}, status_code=500)
+            return JSONResponse(
+                {"error": f"Failed to compute neighbors: {exc}"}, status_code=500
+            )
 
         id_values = dataset_df[id_column].tolist()
         neighbors = []
@@ -541,7 +591,9 @@ def make_server(
             return Response(status_code=404)
         return Response(content=content, media_type=mime)
 
-    duckdb_connection_holder: dict[str, duckdb.DuckDBPyConnection | None] = {"conn": None}
+    duckdb_connection_holder: dict[str, duckdb.DuckDBPyConnection | None] = {
+        "conn": None
+    }
     duckdb_connection_lock = threading.Lock()
 
     def get_duckdb_connection() -> duckdb.DuckDBPyConnection:
@@ -551,11 +603,14 @@ def make_server(
         with duckdb_connection_lock:
             conn = duckdb_connection_holder["conn"]
             if conn is None:
-                duckdb_connection_holder["conn"] = make_duckdb_connection(data_source.dataset)
+                duckdb_connection_holder["conn"] = make_duckdb_connection(
+                    data_source.dataset
+                )
                 conn = duckdb_connection_holder["conn"]
         return conn
 
     if duckdb_uri == "server":
+
         def handle_query(query: dict):
             sql = query["sql"]
             command = query["type"]

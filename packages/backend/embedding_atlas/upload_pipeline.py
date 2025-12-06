@@ -18,7 +18,9 @@ def _safe_resolve(path: Path) -> Optional[Path]:
         return None
 
 
-def _iter_candidate_paths(config_path: Path, upload_cfg: dict[str, Any]) -> Iterable[Path]:
+def _iter_candidate_paths(
+    config_path: Path, upload_cfg: dict[str, Any]
+) -> Iterable[Path]:
     """Yield candidate roots that may contain the SkinMap sources."""
     seen: set[str] = set()
 
@@ -65,8 +67,12 @@ def _ensure_sys_path(config_path: Path, upload_cfg: dict[str, Any]) -> None:
 class LazyCombinedEmbeddingPipeline:
     """Lazily construct the CombinedEmbeddingPipeline on first use."""
 
-    def __init__(self, config: dict[str, Any], config_path: Path, *, device: Optional[str] = None):
-        from src.combined_embedder import CombinedEmbeddingPipeline  # Local import to avoid circular deps during build.
+    def __init__(
+        self, config: dict[str, Any], config_path: Path, *, device: Optional[str] = None
+    ):
+        from src.combined_embedder import (
+            CombinedEmbeddingPipeline,
+        )  # Local import to avoid circular deps during build.
 
         self._config = config
         self._config_path = config_path
@@ -80,7 +86,9 @@ class LazyCombinedEmbeddingPipeline:
         if self._pipeline is not None:
             return self._pipeline
         if self._load_exc is not None:
-            raise RuntimeError("Upload embedding pipeline failed to initialize.") from self._load_exc
+            raise RuntimeError(
+                "Upload embedding pipeline failed to initialize."
+            ) from self._load_exc
         with self._lock:
             if self._pipeline is None and self._load_exc is None:
                 start = time.perf_counter()
@@ -100,10 +108,16 @@ class LazyCombinedEmbeddingPipeline:
                         "Upload embedding pipeline ready (took %.1fs)",
                         elapsed,
                     )
-                except Exception as exc:  # pragma: no cover - defensive: surfaced to caller
+                except (
+                    Exception
+                ) as exc:  # pragma: no cover - defensive: surfaced to caller
                     self._load_exc = exc
-                    logger.exception("Failed to initialize upload embedding pipeline: %s", exc)
-                    raise RuntimeError("Upload embedding pipeline failed to initialize.") from exc
+                    logger.exception(
+                        "Failed to initialize upload embedding pipeline: %s", exc
+                    )
+                    raise RuntimeError(
+                        "Upload embedding pipeline failed to initialize."
+                    ) from exc
         return self._pipeline
 
     def search_image(self, image_bytes: bytes, k: int = 16):
@@ -145,7 +159,9 @@ def create_upload_pipeline(
     """
     path = Path(config_path)
     if not path.exists():
-        logger.warning("Upload configuration %s not found; disabling upload search.", path)
+        logger.warning(
+            "Upload configuration %s not found; disabling upload search.", path
+        )
         return None
 
     try:
@@ -159,7 +175,9 @@ def create_upload_pipeline(
 
     try:
         pipeline = LazyCombinedEmbeddingPipeline(upload_cfg, path, device=device)
-    except Exception as exc:  # pragma: no cover - LazyCombinedEmbeddingPipeline may raise during import
+    except (
+        Exception
+    ) as exc:  # pragma: no cover - LazyCombinedEmbeddingPipeline may raise during import
         logger.exception("Failed to initialize LazyCombinedEmbeddingPipeline: %s", exc)
         return None
 

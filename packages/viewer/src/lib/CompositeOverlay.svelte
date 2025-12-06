@@ -3,7 +3,8 @@
   import type { OverlayProxy } from "@embedding-atlas/component";
 
   import SearchResultOverlay from "./SearchResultOverlay.svelte";
-  import UploadedSamplesOverlay, { type UploadedSamplePoint } from "./UploadedSamplesOverlay.svelte";
+  import UploadedSamplesOverlay from "./UploadedSamplesOverlay.svelte";
+  import type { UploadedSamplePoint } from "./types/uploaded_samples.js";
   import type { SearchResultItem } from "./search.js";
 
   interface Props {

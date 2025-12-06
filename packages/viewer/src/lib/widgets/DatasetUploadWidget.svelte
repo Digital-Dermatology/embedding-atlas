@@ -4,7 +4,7 @@
 
   import { nanoid } from "nanoid";
 
-  import type { UploadedSamplePoint } from "../UploadedSamplesOverlay.svelte";
+  import type { UploadedSamplePoint } from "../types/uploaded_samples.js";
 
   import Button from "./Button.svelte";
   import Spinner from "../Spinner.svelte";

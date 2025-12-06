@@ -50,7 +50,7 @@
   import { PlotStateStoreManager } from "./plots/plot_state_store.js";
   import { getRenderer, type ColumnStyle } from "./renderers/index.js";
   import { querySearchResultItems, resolveSearcher, type SearchResultItem } from "./search.js";
-  import type { UploadedSamplePoint } from "./UploadedSamplesOverlay.svelte";
+import type { UploadedSamplePoint } from "./types/uploaded_samples.js";
   import { tableTheme } from "./table_theme.js";
   import { debounce, startDrag } from "./utils.js";
   import skinmapLogo from "../assets/atlas.png";
@@ -1077,7 +1077,7 @@ async function handleDatasetEmbeddingResult(detail: {
   uploadedSamplesHighlightId = points[0]?.id ?? null;
   const focus = computeUploadedSamplesFocus(points);
   if (focus != null) {
-    await animateEmbeddingViewToPoint(undefined, focus.x, focus.y);
+    await animateEmbeddingViewToPoint(undefined, focus.x, focus.y, 3);
   }
 }
 
@@ -1087,7 +1087,7 @@ async function handleDatasetSampleSelect(detail: { point: UploadedSamplePoint })
     return;
   }
   uploadedSamplesHighlightId = point.id;
-  await animateEmbeddingViewToPoint(undefined, point.x, point.y);
+  await animateEmbeddingViewToPoint(undefined, point.x, point.y, 3);
 }
 
 function handleDatasetClear() {
@@ -1216,12 +1216,17 @@ function clearSearch() {
 
   // Animation
 
-  async function animateEmbeddingViewToPoint(identifier?: any, x?: number, y?: number): Promise<void> {
+  async function animateEmbeddingViewToPoint(
+    identifier?: any,
+    x?: number,
+    y?: number,
+    scaleMultiplier: number = 2,
+  ): Promise<void> {
     if (defaultViewportScale == null) {
       return;
     }
 
-    let scale = (await defaultViewportScale) * 2;
+    let scale = (await defaultViewportScale) * scaleMultiplier;
     if (x == null || y == null) {
       if (data.projection == null) {
         return;

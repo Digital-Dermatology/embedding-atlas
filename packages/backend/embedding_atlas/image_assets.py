@@ -84,7 +84,9 @@ def _resolve_path(path_value: str, base_dir: Path | None = None) -> Path | None:
     return None
 
 
-def normalize_image_bytes(value, base_dir: Path | None = None) -> tuple[bytes | None, Path | None]:
+def normalize_image_bytes(
+    value, base_dir: Path | None = None
+) -> tuple[bytes | None, Path | None]:
     """Return image bytes or a filesystem path for supported value types."""
     if value is None or _is_nan(value):
         return None, None
@@ -147,7 +149,12 @@ def _bytes_from_array(value) -> bytes | None:
         np = None
 
     if np is not None and isinstance(value, np.ndarray):
-        if value.dtype.kind not in ("u", "i", "f", "b"):  # Skip non-numeric arrays (e.g., strings)
+        if value.dtype.kind not in (
+            "u",
+            "i",
+            "f",
+            "b",
+        ):  # Skip non-numeric arrays (e.g., strings)
             return None
         value = value.astype("uint8")
         try:
@@ -190,7 +197,11 @@ def _encode_thumbnail(data: bytes, mime: str, max_size: int) -> tuple[bytes, str
         return data, mime
 
     with Image.open(BytesIO(data)) as img:
-        img = img.convert("RGBA") if img.mode in ("P", "RGBA", "LA") else img.convert("RGB")
+        img = (
+            img.convert("RGBA")
+            if img.mode in ("P", "RGBA", "LA")
+            else img.convert("RGB")
+        )
         img.thumbnail((max_size, max_size))
         buffer = BytesIO()
         if img.mode == "RGB":
@@ -265,7 +276,9 @@ def extract_image_assets(
             if mime == "application/octet-stream":
                 continue
             try:
-                thumb_bytes, thumb_mime = _encode_thumbnail(bytes_value, mime, max_thumbnail)
+                thumb_bytes, thumb_mime = _encode_thumbnail(
+                    bytes_value, mime, max_thumbnail
+                )
             except Exception:
                 continue
             extension = _extension_for_mime(thumb_mime)

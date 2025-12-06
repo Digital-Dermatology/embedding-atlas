@@ -120,12 +120,17 @@ def _projection_for_texts(
     # Set default batch size if not provided
     if batch_size is None:
         batch_size = 32
-        logger.info("Using default batch size of %d for text. Adjust with --batch-size if you encounter memory issues or want to speed up processing.", batch_size)
+        logger.info(
+            "Using default batch size of %d for text. Adjust with --batch-size if you encounter memory issues or want to speed up processing.",
+            batch_size,
+        )
 
     logger.info("Loading model %s...", model)
     transformer = SentenceTransformer(model, trust_remote_code=trust_remote_code)
 
-    logger.info("Running embedding for %d texts with batch size %d...", len(texts), batch_size)
+    logger.info(
+        "Running embedding for %d texts with batch size %d...", len(texts), batch_size
+    )
     hidden_vectors = transformer.encode(texts, batch_size=batch_size)
 
     result = _run_umap(hidden_vectors, umap_args)
@@ -182,9 +187,14 @@ def _projection_for_images(
     # Set default batch size if not provided
     if batch_size is None:
         batch_size = 16
-        logger.info("Using default batch size of %d for images. Adjust with --batch-size if you encounter memory issues or want to speed up processing.", batch_size)
-    
-    logger.info("Running embedding for %d images with batch size %d...", len(images), batch_size)
+        logger.info(
+            "Using default batch size of %d for images. Adjust with --batch-size if you encounter memory issues or want to speed up processing.",
+            batch_size,
+        )
+
+    logger.info(
+        "Running embedding for %d images with batch size %d...", len(images), batch_size
+    )
     tensors = []
 
     current_batch = []
@@ -239,7 +249,7 @@ def compute_text_projection(
         model: str, name or path of the SentenceTransformer model to use for embedding.
         trust_remote_code: bool, whether to trust and execute remote code when loading
             the model from HuggingFace Hub. Default is False.
-        batch_size: int, batch size for processing embeddings. Larger values use more 
+        batch_size: int, batch size for processing embeddings. Larger values use more
             memory but may be faster. Default is 32.
         umap_args: dict, additional keyword arguments to pass to the UMAP algorithm
             (e.g., n_neighbors, min_dist, metric).
@@ -374,7 +384,7 @@ def compute_image_projection(
         model: str, name or path of the model to use for embedding.
         trust_remote_code: bool, whether to trust and execute remote code when loading
             the model from HuggingFace Hub. Default is False.
-        batch_size: int, batch size for processing images. Larger values use more 
+        batch_size: int, batch size for processing images. Larger values use more
             memory but may be faster. Default is 16.
         umap_args: dict, additional keyword arguments to pass to the UMAP algorithm
             (e.g., n_neighbors, min_dist, metric).

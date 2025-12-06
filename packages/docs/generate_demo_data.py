@@ -78,7 +78,8 @@ def main(output: str):
     conn.register("wine_data", df)
 
     # Sort data using Hilbert curve encoding of the projection.
-    conn.execute(f"""
+    conn.execute(
+        f"""
     COPY (
         SELECT *
         FROM wine_data
@@ -87,7 +88,8 @@ def main(output: str):
             projection_y
         ]::FLOAT[2])
     ) TO '{output_path / "dataset.parquet"}' (FORMAT PARQUET)
-    """)
+    """
+    )
 
     metadata = {
         "props": {

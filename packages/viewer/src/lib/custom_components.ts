@@ -10,7 +10,7 @@ import Tooltip from "./Tooltip.svelte";
 
 import type { ColumnStyle } from "./renderers/index.js";
 import type { SearchResultItem } from "./search.js";
-import type { UploadedSamplePoint } from "./UploadedSamplesOverlay.svelte";
+import type { UploadedSamplePoint } from "./types/uploaded_samples.js";
 
 function createCustomComponentClass<Props extends {}>(Component: Component<Props>): any {
   return class {

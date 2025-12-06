@@ -87,7 +87,9 @@ def _values_to_numpy(series: pd.Series) -> np.ndarray:
             elif isinstance(parsed, np.ndarray):
                 arr = parsed.astype(np.float32, copy=False)
             else:
-                raise ValueError("String value could not be parsed into a numeric array")
+                raise ValueError(
+                    "String value could not be parsed into a numeric array"
+                )
         else:
             raise ValueError(f"Unsupported vector value type: {type(value)}")
         if arr.ndim != 1:
@@ -114,7 +116,9 @@ def apply_saved_umap_projection(
         return None
     config_path = Path(upload_config_path).resolve()
     if not config_path.exists():
-        logger.warning("Upload config %s not found; cannot load saved UMAP.", config_path)
+        logger.warning(
+            "Upload config %s not found; cannot load saved UMAP.", config_path
+        )
         return None
     try:
         with config_path.open("r") as f:
@@ -139,7 +143,11 @@ def apply_saved_umap_projection(
     try:
         vectors = _values_to_numpy(df[vector_column])
     except Exception as exc:
-        logger.warning("Could not convert vector column '%s' into numpy arrays: %s", vector_column, exc)
+        logger.warning(
+            "Could not convert vector column '%s' into numpy arrays: %s",
+            vector_column,
+            exc,
+        )
         return None
     try:
         coords = reducer.transform(vectors)
@@ -156,7 +164,9 @@ def apply_saved_umap_projection(
         model_path,
         vector_column,
     )
-    return ProjectionInfo(x_column="projection_x", y_column="projection_y", reducer=reducer)
+    return ProjectionInfo(
+        x_column="projection_x", y_column="projection_y", reducer=reducer
+    )
 
 
 def load_datasets(
@@ -400,7 +410,10 @@ def main(
         if vector is not None and upload_config is not None:
             saved_projection = apply_saved_umap_projection(df, vector, upload_config)
             if saved_projection is not None:
-                x_column, y_column = saved_projection.x_column, saved_projection.y_column
+                x_column, y_column = (
+                    saved_projection.x_column,
+                    saved_projection.y_column,
+                )
                 used_saved_projection = True
         if not used_saved_projection:
             # No x, y column selected, first see if text/image/vectors column is specified, if not, ask for it
@@ -491,13 +504,13 @@ def main(
     df[id_column] = range(df.shape[0])
     logger.info("Assigned row id column '%s'.", id_column)
 
-    source_dirs = df[SOURCE_DIR_COLUMN_NAME] if SOURCE_DIR_COLUMN_NAME in df.columns else None
+    source_dirs = (
+        df[SOURCE_DIR_COLUMN_NAME] if SOURCE_DIR_COLUMN_NAME in df.columns else None
+    )
     image_assets, image_columns = extract_image_assets(
         df, id_column, source_dirs=source_dirs
     )
-    logger.info(
-        "Detected %d image asset columns.", len(image_columns)
-    )
+    logger.info("Detected %d image asset columns.", len(image_columns))
     if SOURCE_DIR_COLUMN_NAME in df.columns:
         df = df.drop(columns=[SOURCE_DIR_COLUMN_NAME])
 
@@ -579,7 +592,9 @@ def main(
                 props.setdefault("data", {})
                 props["data"]["vectorNeighborsEndpoint"] = vector_neighbors_endpoint
         else:
-            logger.warning("Upload pipeline could not be initialized; image upload disabled.")
+            logger.warning(
+                "Upload pipeline could not be initialized; image upload disabled."
+            )
 
     if static is None:
         static = str((pathlib.Path(__file__).parent / "static").resolve())
@@ -597,8 +612,12 @@ def main(
         static_path=static,
         duckdb_uri=duckdb,
         upload_pipeline=upload_pipeline,
-        upload_projection_model=saved_projection.reducer if saved_projection is not None else None,
-        vector_neighbor_column=vector if vector_neighbors_endpoint is not None else None,
+        upload_projection_model=(
+            saved_projection.reducer if saved_projection is not None else None
+        ),
+        vector_neighbor_column=(
+            vector if vector_neighbors_endpoint is not None else None
+        ),
         id_column=id_column,
         max_neighbor_results=max_point_neighbors,
     )

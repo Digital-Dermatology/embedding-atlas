@@ -85,7 +85,9 @@ class DataSource:
                     for fn in files:
                         p = os.path.join(
                             "data/feedback",
-                            os.path.relpath(os.path.join(root, fn), str(self.feedback_path)),
+                            os.path.relpath(
+                                os.path.join(root, fn), str(self.feedback_path)
+                            ),
                         )
                         zip.write(os.path.join(root, fn), p)
             for column, assets in self.image_assets.items():
