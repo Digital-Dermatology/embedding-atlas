@@ -1068,8 +1068,8 @@ function clearUploadedSamples() {
 }
 
 async function handleDatasetEmbeddingResult(detail: { points?: UploadedSamplePoint[]; errors?: BatchUploadError[]; truncated?: boolean } | null) {
-  const normalizedDetail = detail ?? {};
-  const points = Array.isArray(normalizedDetail.points) ? normalizedDetail.points : [];
+  const normalized = detail ?? {};
+  const points = Array.isArray(normalized.points) ? normalized.points : [];
   uploadedSamples = points;
   uploadedSamplesHighlightId = points[0]?.id ?? null;
   let focus = computeUploadedSamplesFocus(points);
@@ -1697,8 +1697,8 @@ function clearSearch() {
                       endpoint={uploadEmbeddingEndpoint}
                       uploadBlocked={clinicalUploadBlocked}
                       uploadBlockedMessage={clinicalUploadBlockMessage}
-                      on:result={handleDatasetEmbeddingResult}
-                      on:select={handleDatasetSampleSelect}
+                      on:result={(event) => handleDatasetEmbeddingResult((event as unknown as CustomEvent<any>).detail)}
+                      on:select={(event) => handleDatasetSampleSelect((event as unknown as CustomEvent<any>).detail)}
                       on:clear={handleDatasetClear}
                     />
                   {/if}
