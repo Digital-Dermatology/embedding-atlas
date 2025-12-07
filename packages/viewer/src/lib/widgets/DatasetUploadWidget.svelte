@@ -91,11 +91,15 @@ let truncated = $state(false);
           : `${label}-${nanoid(6)}`;
       const x = Number(point?.x);
       const y = Number(point?.y);
+      const avgDistance =
+        point?.avgDistance != null && Number.isFinite(Number(point.avgDistance))
+          ? Number(point.avgDistance)
+          : null;
       if (!Number.isFinite(x) || !Number.isFinite(y)) {
         return;
       }
       const previewUrl = previews.get(label) ?? null;
-      normalized.push({ id, label, x, y, previewUrl });
+      normalized.push({ id, label, x, y, previewUrl, avgDistance });
     });
     return normalized;
   }
