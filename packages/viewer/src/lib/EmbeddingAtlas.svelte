@@ -41,7 +41,7 @@
   import type { EmbeddingAtlasProps, EmbeddingAtlasState } from "./api.js";
   import { EMBEDDING_ATLAS_VERSION } from "./constants.js";
   import { Context } from "./contexts.js";
-  import { CombinedOverlay, CustomTooltip } from "./custom_components.js";
+  import { CustomOverlay, CustomTooltip } from "./custom_components.js";
   import { makeDarkModeStore } from "./dark_mode_store.js";
   import { predicateToString, TableInfo, type ColumnDesc, type EmbeddingLegend } from "./database_utils.js";
   import { setImageAssets } from "./image_utils.js";
@@ -1578,7 +1578,7 @@ function clearSearch() {
                 }}
                 customOverlay={searchResult || uploadedSamples.length > 0
                   ? {
-                      class: CombinedOverlay,
+                      class: CustomOverlay,
                       props: {
                         items: searchResult?.items ?? [],
                         highlightItem: searchResultHighlight,

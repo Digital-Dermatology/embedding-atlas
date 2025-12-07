@@ -4,7 +4,6 @@ import type { DataPoint, OverlayProxy } from "@embedding-atlas/component";
 import type { Component } from "svelte";
 import { createClassComponent } from "svelte/legacy";
 
-import CompositeOverlay from "./CompositeOverlay.svelte";
 import SearchResultOverlay from "./SearchResultOverlay.svelte";
 import Tooltip from "./Tooltip.svelte";
 
@@ -45,14 +44,3 @@ export const CustomOverlay = createCustomComponentClass<{
   groupMode?: boolean;
   groupColors?: Record<string, string> | null;
 }>(SearchResultOverlay);
-
-export const CombinedOverlay = createCustomComponentClass<{
-  proxy: OverlayProxy;
-  items: SearchResultItem[];
-  highlightItem?: SearchResultItem | null;
-  focusPoint?: { x: number; y: number } | null;
-  groupMode?: boolean;
-  groupColors?: Record<string, string> | null;
-  uploadedPoints?: UploadedSamplePoint[];
-  uploadedHighlightId?: string | null;
-}>(CompositeOverlay);

@@ -2,6 +2,7 @@
 <script lang="ts">
   import type { OverlayProxy } from "@embedding-atlas/component";
   import { color as d3color } from "d3-color";
+  import type { UploadedSamplePoint } from "./types/uploaded_samples.js";
   import type { SearchResultItem } from "./search.js";
 
   interface Props {
@@ -11,6 +12,8 @@
     proxy: OverlayProxy;
     groupMode?: boolean;
     groupColors?: Record<string, string> | null;
+    uploadedPoints?: UploadedSamplePoint[];
+    uploadedHighlightId?: string | null;
   }
 
   let {
@@ -20,6 +23,8 @@
     proxy,
     groupMode = false,
     groupColors = null,
+    uploadedPoints = [],
+    uploadedHighlightId = null,
   }: Props = $props();
 
   function starPoints(cx: number, cy: number, outerRadius: number, innerRadius: number): string {
@@ -108,6 +113,27 @@
         <circle cx={loc.x} cy={loc.y} r={2.8} fill={coreColor} opacity={isHighlight ? 0.95 : 0.85} />
       {/if}
     {/each}
+    {#if uploadedPoints?.length}
+      {#each uploadedPoints as point (point.id)}
+        {#if Number.isFinite(point.x) && Number.isFinite(point.y)}
+          {@const loc = proxy.location(point.x, point.y)}
+          {@const isHighlight = uploadedHighlightId === point.id}
+          <polygon
+            points={starPoints(loc.x, loc.y, isHighlight ? 10 : 8, isHighlight ? 4 : 3)}
+            class="fill-amber-300 stroke-amber-600"
+            stroke-width={isHighlight ? 2.8 : 2.2}
+            opacity={isHighlight ? 0.95 : 0.88}
+          />
+          <circle
+            cx={loc.x}
+            cy={loc.y}
+            r={isHighlight ? 3.6 : 3}
+            class="fill-amber-600"
+            opacity={isHighlight ? 0.96 : 0.9}
+          />
+        {/if}
+      {/each}
+    {/if}
     {#if focusPoint && Number.isFinite(focusPoint.x) && Number.isFinite(focusPoint.y)}
       {@const loc = proxy.location(focusPoint.x, focusPoint.y)}
       <polygon
