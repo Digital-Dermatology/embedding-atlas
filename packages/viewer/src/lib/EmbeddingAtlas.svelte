@@ -1067,22 +1067,22 @@ function clearUploadedSamples() {
   uploadedSamplesHighlightId = null;
 }
 
-async function handleDatasetEmbeddingResult(detail: {
-  points?: UploadedSamplePoint[];
-  errors?: BatchUploadError[];
-  truncated?: boolean;
-}) {
-  const points = Array.isArray(detail?.points) ? detail.points : [];
+async function handleDatasetEmbeddingResult(detail: { points?: UploadedSamplePoint[]; errors?: BatchUploadError[]; truncated?: boolean } | null) {
+  const normalizedDetail = detail ?? {};
+  const points = Array.isArray(normalizedDetail.points) ? normalizedDetail.points : [];
   uploadedSamples = points;
   uploadedSamplesHighlightId = points[0]?.id ?? null;
-  const focus = computeUploadedSamplesFocus(points);
+  let focus = computeUploadedSamplesFocus(points);
+  if (focus == null && points[0] && Number.isFinite(points[0].x) && Number.isFinite(points[0].y)) {
+    focus = { x: points[0].x, y: points[0].y };
+  }
   if (focus != null) {
     uploadFocusPoint = focus;
     await animateEmbeddingViewToPoint(undefined, focus.x, focus.y, 3);
   }
 }
 
-async function handleDatasetSampleSelect(detail: { point: UploadedSamplePoint }) {
+async function handleDatasetSampleSelect(detail: { point: UploadedSamplePoint } | null) {
   const point = detail?.point;
   if (point == null || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
     return;
