@@ -4,4 +4,5 @@ export type UploadedSamplePoint = {
   x: number;
   y: number;
   previewUrl?: string | null;
+  avgDistance?: number | null;
 };

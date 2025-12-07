@@ -44,9 +44,9 @@
   let status: string = $state("");
   let errorMessage: string | null = $state(null);
   let uploading: boolean = $state(false);
-  let results: UploadedSamplePoint[] = $state([]);
-  let errors: { label: string; message: string }[] = $state([]);
-  let truncated = $state(false);
+let results: UploadedSamplePoint[] = $state([]);
+let errors: { label: string; message: string }[] = $state([]);
+let truncated = $state(false);
 
   function resetPreviews() {
     previews.forEach((url) => URL.revokeObjectURL(url));
@@ -172,6 +172,7 @@
     status = "";
     dispatch("clear", {});
   }
+
 </script>
 
 <div class="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm flex flex-col gap-3 p-3">
@@ -238,12 +239,23 @@
       <div class="flex flex-col gap-1 max-h-40 overflow-y-auto pr-1">
         {#each results as point (point.id)}
           <button
-            class="flex items-center gap-2 text-left rounded-md border border-transparent hover:border-sky-200 dark:hover:border-sky-700 px-2 py-1 transition-colors"
+            class="flex items-center gap-2 text-left rounded-md border border-transparent hover:border-amber-200 dark:hover:border-amber-700 px-2 py-1 transition-colors"
             onclick={() => selectPoint(point)}
           >
-            <div class="w-2.5 h-2.5 rounded-full bg-sky-500 border border-sky-700"></div>
+            <svg width="16" height="16" viewBox="0 0 24 24" class="text-amber-500">
+              <polygon
+                points="12 3 14.9 8.5 21 9.3 16.5 13.5 17.7 19.5 12 16.7 6.3 19.5 7.5 13.5 3 9.3 9.1 8.5 12 3"
+                fill="currentColor"
+                stroke="#c2410c"
+                stroke-width="1.2"
+              />
+            </svg>
             <span class="flex-1 truncate text-slate-700 dark:text-slate-200">{point.label ?? point.id}</span>
-            <span class="text-xs text-slate-400 dark:text-slate-500">{point.x.toFixed(2)}, {point.y.toFixed(2)}</span>
+            {#if point.avgDistance != null}
+              <span class="text-xs text-slate-500 dark:text-slate-400">avg dist@10: {point.avgDistance.toFixed(4)}</span>
+            {:else}
+              <span class="text-xs text-slate-400 dark:text-slate-500">–</span>
+            {/if}
           </button>
         {/each}
       </div>

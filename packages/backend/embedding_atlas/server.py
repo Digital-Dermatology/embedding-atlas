@@ -444,6 +444,7 @@ def make_server(
 
         points: list[dict[str, object]] = []
         errors: list[dict[str, str]] = []
+        novelty_k = 10
 
         for index, file in enumerate(selected_files):
             label = file.filename or f"sample-{index + 1}"
@@ -495,6 +496,21 @@ def make_server(
                 )
                 continue
 
+            avg_distance = None
+            try:
+                nn_indices, nn_distances = upload_pipeline.find_nearest_neighbors(
+                    vector, k=min(novelty_k, total_rows)
+                )
+                valid = [
+                    float(d)
+                    for d in (nn_distances or [])
+                    if d is not None and np.isfinite(d)
+                ]
+                if len(valid) > 0:
+                    avg_distance = float(np.mean(valid[:novelty_k]))
+            except Exception:
+                avg_distance = None
+
             points.append(
                 {
                     "id": uuid.uuid4().hex,
@@ -502,6 +518,7 @@ def make_server(
                     "x": x_value,
                     "y": y_value,
                     "order": index,
+                    "avgDistance": avg_distance,
                 }
             )
 
