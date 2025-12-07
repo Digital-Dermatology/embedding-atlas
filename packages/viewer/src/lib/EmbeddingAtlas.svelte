@@ -1077,6 +1077,7 @@ async function handleDatasetEmbeddingResult(detail: {
   uploadedSamplesHighlightId = points[0]?.id ?? null;
   const focus = computeUploadedSamplesFocus(points);
   if (focus != null) {
+    uploadFocusPoint = focus;
     await animateEmbeddingViewToPoint(undefined, focus.x, focus.y, 3);
   }
 }
@@ -1087,11 +1088,13 @@ async function handleDatasetSampleSelect(detail: { point: UploadedSamplePoint })
     return;
   }
   uploadedSamplesHighlightId = point.id;
+  uploadFocusPoint = { x: point.x, y: point.y };
   await animateEmbeddingViewToPoint(undefined, point.x, point.y, 3);
 }
 
 function handleDatasetClear() {
   clearUploadedSamples();
+  uploadFocusPoint = null;
 }
 
 async function loadMoreSearchResults() {

@@ -43,4 +43,6 @@ export const CustomOverlay = createCustomComponentClass<{
   focusPoint?: { x: number; y: number } | null;
   groupMode?: boolean;
   groupColors?: Record<string, string> | null;
+  uploadedPoints?: UploadedSamplePoint[];
+  uploadedHighlightId?: string | null;
 }>(SearchResultOverlay);
