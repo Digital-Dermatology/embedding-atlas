@@ -117,7 +117,7 @@ interface UploadSearchResultDetail {
   );
   let uploadSearchAvailable = $derived(uploadSearchEnabledFlag !== false);
   let uploadSearchWarning = $derived(uploadSearchEnabledFlag === false);
-  let showUploadSearchWidget = $derived(Boolean(uploadSearchConfig?.endpoint ?? true));
+  let showUploadSearchWidget = $derived(Boolean(uploadSearchConfig?.endpoint ?? defaultUploadConfig.endpoint));
   let showBatchUploadWidget = $derived(Boolean(uploadEmbeddingEndpoint));
 
   onMount(() => {
