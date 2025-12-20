@@ -23,6 +23,7 @@
   import Input from "./widgets/Input.svelte";
   import PopupButton from "./widgets/PopupButton.svelte";
   import Select from "./widgets/Select.svelte";
+  import SearchFilters from "./widgets/SearchFilters.svelte";
   import Slider from "./widgets/Slider.svelte";
   import ToggleButton from "./widgets/ToggleButton.svelte";
 
@@ -120,6 +121,7 @@ interface UploadSearchResultDetail {
   let isClinicalRoute = $derived((activeRoute ?? "").toLowerCase() === "clinical");
   let showUploadSearchWidget = $derived(Boolean(uploadSearchConfig?.endpoint ?? defaultUploadConfig.endpoint));
   let showBatchUploadWidget = $derived(Boolean(uploadEmbeddingEndpoint) && !isClinicalRoute);
+  let clinicalSearchTab = $state<"image" | "text">("image");
 
   onMount(() => {
     if (typeof window === "undefined") {
@@ -281,12 +283,21 @@ interface UploadSearchResultDetail {
   let allowFullTextSearch = $derived(searcher.fullTextSearch != null);
   let allowVectorSearch = $derived(searcher.vectorSearch != null);
   let allowNearestNeighborSearch = $derived(searcher.nearestNeighbors != null);
-  let searchMode = $state<"full-text" | "vector" | "neighbors">("full-text");
+  let searchMode = $state<"full-text" | "vector" | "neighbors">("vector");
   let searchModeOptions = $derived([
+    ...(allowVectorSearch ? [{ label: "Vector NN", value: "vector" }] : []),
     ...(allowFullTextSearch ? [{ label: "Full Text", value: "full-text" }] : []),
-    ...(allowVectorSearch ? [{ label: "Vector", value: "vector" }] : []),
     ...(allowNearestNeighborSearch ? [{ label: "Neighbors", value: "neighbors" }] : []),
   ]);
+  $effect(() => {
+    const availableModes = searchModeOptions.map((option) => option.value);
+    if (availableModes.length === 0) {
+      return;
+    }
+    if (!availableModes.includes(searchMode)) {
+      searchMode = availableModes[0] as typeof searchMode;
+    }
+  });
 
   let searchQuery = $state("");
   let searcherStatus = $state("");
@@ -303,6 +314,7 @@ interface UploadSearchResultDetail {
   let searchResultFetchLimit: number = $state(searchPageSize);
   let searchResultBackendHasMore: boolean = $state(false);
   let lastSearchArgs = $state.raw<{ query: any; mode: "full-text" | "vector" | "neighbors" } | null>(null);
+  let textSearchFilters: UploadSearchFilter[] = $state.raw([]);
   type ClinicalFeedbackContext =
     | {
         mode: "neighbors";
@@ -354,6 +366,9 @@ interface UploadSearchResultDetail {
     if (signature != null && signature === pendingUploadSurveySignature) {
       pendingUploadSurveySignature = null;
     }
+  }
+  function handleTextFiltersChange(event: { filters: UploadSearchFilter[] }) {
+    textSearchFilters = event?.filters ?? [];
   }
   let uploadSearchDetail = $state.raw<UploadSearchResultDetail | null>(null);
   let uploadSearchNeighborCount: number = $state(0);
@@ -619,6 +634,26 @@ interface UploadSearchResultDetail {
       });
     }
 
+    const hasTextFilters = textSearchFilters.some(isFilterActive);
+    let filteredSearcherResult = searcherResult;
+    if (hasTextFilters) {
+      searcherStatus = "Filtering...";
+      try {
+        const neighbors = searcherResult.map((item: any) => ({
+          id: item?.id ?? item,
+          distance: typeof item?.distance === "number" ? item.distance : undefined,
+        }));
+        const filtered = await filterNeighborsByMetadata(neighbors, textSearchFilters);
+        filteredSearcherResult = filtered.map((neighbor) => ({
+          id: neighbor.id,
+          distance: neighbor.distance,
+        }));
+      } catch (error) {
+        console.error("Failed to apply text search filters", error);
+        filteredSearcherResult = searcherResult;
+      }
+    }
+
     let neighborAnchorPoint: { x: number; y: number } | null = null;
     if (resolvedMode === "neighbors") {
       neighborAnchorPoint = await resolveEmbeddingPoint(effectiveQuery);
@@ -632,7 +667,7 @@ interface UploadSearchResultDetail {
       { id: data.id, x: data.projection?.x, y: data.projection?.y, text: data.text },
       additionalFields,
       predicate,
-      searcherResult,
+      filteredSearcherResult,
     );
 
     const augmented = augmentSearchResultsWithGroup(result);
@@ -1166,6 +1201,7 @@ function clearSearch() {
 }
 
   $effect.pre(() => {
+    const _filters = textSearchFilters;
     if (searchQuery == "") {
       clearSearch();
     } else {
@@ -1674,41 +1710,68 @@ function clearSearch() {
             >
               <div class={`flex-1 min-h-0 min-w-0 flex gap-3 p-3 ${nnPanelLayoutClasses}`}>
                 <div class={`flex flex-col gap-4 ${nnPanelSidebarClasses}`}>
-                  <div class="flex flex-col gap-2">
-                    <div class="text-sm font-semibold text-slate-600 dark:text-slate-300 select-none">
-                      Image NN Search
+                  {#if isClinicalRoute}
+                    <div class="flex items-center gap-2 rounded-full border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 p-1">
+                      <button
+                        class={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          clinicalSearchTab === "image"
+                            ? "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-100 shadow"
+                            : "text-slate-500 dark:text-slate-400"
+                        }`}
+                        onclick={() => (clinicalSearchTab = "image")}
+                      >
+                        Image NN
+                      </button>
+                      <button
+                        class={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          clinicalSearchTab === "text"
+                            ? "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-100 shadow"
+                            : "text-slate-500 dark:text-slate-400"
+                        }`}
+                        onclick={() => (clinicalSearchTab = "text")}
+                      >
+                        Text NN
+                      </button>
                     </div>
-                    {#if showUploadSearchWidget}
-                      <ImageSearchWidget
-                        disabled={!uploadSearchAvailable}
-                        endpoint={uploadSearchEndpoint}
-                        coordinator={coordinator}
-                        table={data.table}
-                        columns={columns}
-                        uploadBlocked={clinicalUploadBlocked}
-                        uploadBlockedMessage={clinicalUploadBlockMessage}
-                        on:result={handleImageSearchResult}
-                      />
-                      {#if uploadSearchWarning}
-                        <div class="rounded-md border border-dashed border-slate-300 dark:border-slate-600 bg-slate-100/70 dark:bg-slate-800/50 text-xs text-slate-500 dark:text-slate-400 px-2 py-1.5">
-                          Image-based neighbor search is currently unavailable.
-                        </div>
+                  {/if}
+                  {#if !isClinicalRoute || clinicalSearchTab === "image"}
+                    <div class="flex flex-col gap-2 max-h-[70vh] overflow-y-auto pr-1">
+                      <div class="text-sm font-semibold text-slate-600 dark:text-slate-300 select-none">
+                        Image NN Search
+                      </div>
+                      {#if showUploadSearchWidget}
+                        <ImageSearchWidget
+                          disabled={!uploadSearchAvailable}
+                          endpoint={uploadSearchEndpoint}
+                          coordinator={coordinator}
+                          table={data.table}
+                          columns={columns}
+                          uploadBlocked={clinicalUploadBlocked}
+                          uploadBlockedMessage={clinicalUploadBlockMessage}
+                          maxHeightClass={isClinicalRoute ? "max-h-[70vh]" : undefined}
+                          on:result={handleImageSearchResult}
+                        />
+                        {#if uploadSearchWarning}
+                          <div class="rounded-md border border-dashed border-slate-300 dark:border-slate-600 bg-slate-100/70 dark:bg-slate-800/50 text-xs text-slate-500 dark:text-slate-400 px-2 py-1.5">
+                            Image-based neighbor search is currently unavailable.
+                          </div>
+                        {/if}
                       {/if}
-                    {/if}
-                    {#if showBatchUploadWidget}
-                      <DatasetUploadWidget
-                        disabled={!uploadSearchAvailable}
-                        endpoint={uploadEmbeddingEndpoint}
-                        uploadBlocked={clinicalUploadBlocked}
-                        uploadBlockedMessage={clinicalUploadBlockMessage}
-                        on:result={(event) => handleDatasetEmbeddingResult((event as unknown as CustomEvent<any>).detail)}
-                        on:select={(event) => handleDatasetSampleSelect((event as unknown as CustomEvent<any>).detail)}
-                        on:clear={handleDatasetClear}
-                      />
-                    {/if}
-                  </div>
-                  {#if searcher}
-                    <div class="flex flex-col gap-2">
+                      {#if showBatchUploadWidget}
+                        <DatasetUploadWidget
+                          disabled={!uploadSearchAvailable}
+                          endpoint={uploadEmbeddingEndpoint}
+                          uploadBlocked={clinicalUploadBlocked}
+                          uploadBlockedMessage={clinicalUploadBlockMessage}
+                          on:result={(event) => handleDatasetEmbeddingResult((event as unknown as CustomEvent<any>).detail)}
+                          on:select={(event) => handleDatasetSampleSelect((event as unknown as CustomEvent<any>).detail)}
+                          on:clear={handleDatasetClear}
+                        />
+                      {/if}
+                    </div>
+                  {/if}
+                  {#if searcher && (!isClinicalRoute || clinicalSearchTab === "text")}
+                    <div class="flex flex-col gap-2 max-h-[70vh] overflow-y-auto pr-1">
                       <div class="text-sm font-semibold text-slate-600 dark:text-slate-300 select-none">
                         Text NN Search
                       </div>
@@ -1730,6 +1793,14 @@ function clearSearch() {
                           placeholder="Search... (e.g., dermatitis)"
                           className="w-full text-base shadow-md shadow-slate-300/40 dark:shadow-black/40"
                           bind:value={searchQuery}
+                        />
+                        <SearchFilters
+                          disabled={!searcher}
+                          coordinator={coordinator}
+                          table={data.table}
+                          columns={columns}
+                          label="Filters"
+                          on:change={handleTextFiltersChange}
                         />
                       </div>
                     </div>
