@@ -1559,7 +1559,7 @@ function clearSearch() {
                 {/if}
               </div>
               <h4 class="text-slate-500 dark:text-slate-400 my-2 select-none">About</h4>
-              <div>Embedding Atlas, {EMBEDDING_ATLAS_VERSION}</div>
+              <div>SkinMap, {EMBEDDING_ATLAS_VERSION}</div>
             </div>
           </PopupButton>
         {#if colorScheme == null}

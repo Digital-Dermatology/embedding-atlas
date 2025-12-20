@@ -198,7 +198,7 @@ onMount(async () => {
         <img src={skinmapLogo} alt="SkinMap logo" class="w-32 h-auto rounded-xl" />
         <div class="flex flex-col items-center gap-1">
           <span class="text-2xl font-semibold tracking-wide">SkinMap</span>
-          <span class="text-sm text-slate-500 dark:text-slate-400">Dermatology Embedding Atlas</span>
+          <span class="text-sm text-slate-500 dark:text-slate-400">Dermatology Atlas</span>
         </div>
         {#if error}
           <div class="max-w-md text-red-500 dark:text-red-400">{status}</div>
