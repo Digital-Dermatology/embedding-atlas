@@ -623,7 +623,7 @@ interface UploadSearchResultDetail {
           searcherStatus = status;
         },
       });
-      highlight = effectiveQuery;
+      highlight = "";
     } else if (resolvedMode == "neighbors" && searcher.nearestNeighbors != null) {
       label = "Neighbors of #" + effectiveQuery.toString();
       searcherResult = await searcher.nearestNeighbors(effectiveQuery, {
