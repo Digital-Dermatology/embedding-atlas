@@ -424,6 +424,56 @@ def make_server(
             query_point = {"x": float(coords[0]), "y": float(coords[1])}
         return JSONResponse({"neighbors": neighbors, "query": query_point})
 
+    @app.get("/data/text-neighbors")
+    async def text_neighbors(q: str, k: int = 16):
+        if upload_pipeline is None:
+            return JSONResponse(
+                {"error": "Text search unavailable."}, status_code=404
+            )
+        if q is None or str(q).strip() == "":
+            return JSONResponse({"neighbors": [], "query": None})
+
+        try:
+            vector = upload_pipeline.encode_text(str(q))
+        except Exception as exc:
+            return JSONResponse(
+                {"error": f"Failed to embed text: {exc}"}, status_code=500
+            )
+
+        search_limit = max(1, min(k, 1000))
+        try:
+            indices, distances = upload_pipeline.find_nearest_neighbors(
+                vector, k=search_limit
+            )
+        except Exception as exc:
+            return JSONResponse(
+                {"error": f"Failed to process text: {exc}"}, status_code=500
+            )
+
+        neighbors = []
+        for idx, dist in zip(indices, distances):
+            if idx is None or idx < 0 or idx >= total_rows:
+                continue
+            identifier = idx
+            if id_column and id_column in dataset_df.columns:
+                identifier = dataset_df.iloc[idx][id_column]
+            neighbors.append(
+                {
+                    "id": _json_scalar(identifier),
+                    "rowIndex": int(_json_scalar(idx)),
+                    "distance": float(dist),
+                }
+            )
+        query_point = None
+        coords = None
+        try:
+            coords = upload_pipeline.project_vector(vector)
+        except Exception:
+            coords = None
+        if coords is not None and len(coords) >= 2:
+            query_point = {"x": float(coords[0]), "y": float(coords[1])}
+        return JSONResponse({"neighbors": neighbors, "query": query_point})
+
     @app.post("/data/upload-embeddings")
     async def upload_embeddings(files: list[UploadFile] = File(...)):
         if upload_pipeline is None:

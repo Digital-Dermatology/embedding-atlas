@@ -50,6 +50,9 @@ export interface EmbeddingAtlasProps {
 
     /** Endpoint for on-demand nearest neighbor lookups when no precomputed column is available. */
     vectorNeighborsEndpoint?: string | null;
+
+    /** Endpoint for text-to-embedding nearest neighbor search. */
+    textSearchEndpoint?: string | null;
   };
 
   /** The color scheme. */

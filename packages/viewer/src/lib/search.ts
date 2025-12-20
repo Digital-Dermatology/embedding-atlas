@@ -208,6 +208,7 @@ export function resolveSearcher(options: {
   textColumns?: string[] | null;
   neighborsColumn?: string | null;
   vectorNeighborsEndpoint?: string | null;
+  textSearchEndpoint?: string | null;
 }): Searcher {
   let {
     coordinator,
@@ -218,6 +219,7 @@ export function resolveSearcher(options: {
     textColumns,
     neighborsColumn,
     vectorNeighborsEndpoint,
+    textSearchEndpoint,
   } = options;
 
   let result: Searcher = {};
@@ -322,6 +324,42 @@ export function resolveSearcher(options: {
         return truncated;
       } catch (error) {
         console.warn("Failed to resolve nearest neighbors from precomputed column.", error);
+        return [];
+      } finally {
+        options.onStatus?.("");
+      }
+    };
+  }
+
+  if (searcher != null && searcher.vectorSearch != null) {
+    result.vectorSearch = searcher.vectorSearch.bind(searcher);
+  } else if (textSearchEndpoint != null) {
+    const endpoint = textSearchEndpoint;
+    result.vectorSearch = async (
+      query: string,
+      options: { limit?: number; predicate?: string | null; onStatus?: (status: string) => void } = {},
+    ): Promise<{ id: any; distance?: number }[]> => {
+      let limit = Math.max(1, Math.min(options.limit ?? DEFAULT_NEIGHBOR_LIMIT, DEFAULT_NEIGHBOR_LIMIT));
+      options.onStatus?.("Searching text...");
+      const base = typeof window !== "undefined" ? window.location.href : "http://localhost";
+      try {
+        const url = new URL(endpoint, base);
+        url.searchParams.set("q", String(query ?? ""));
+        url.searchParams.set("k", String(limit));
+        const response = await fetch(url.toString());
+        if (!response.ok) {
+          throw new Error(`Failed with status ${response.status}`);
+        }
+        const payload = await response.json();
+        const neighbors: any[] = Array.isArray(payload?.neighbors) ? payload.neighbors : [];
+        return neighbors
+          .map((neighbor) => ({
+            id: neighbor.id,
+            distance: typeof neighbor.distance === "number" ? neighbor.distance : undefined,
+          }))
+          .slice(0, limit);
+      } catch (error) {
+        console.warn("Failed to fetch text neighbors from endpoint.", error);
         return [];
       } finally {
         options.onStatus?.("");

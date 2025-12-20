@@ -275,6 +275,7 @@ interface UploadSearchResultDetail {
       textColumn: data.text,
       neighborsColumn: data.neighbors,
       vectorNeighborsEndpoint: data.vectorNeighborsEndpoint ?? null,
+      textSearchEndpoint: data.textSearchEndpoint ?? null,
       searcher: specifiedSearcher,
       textColumns: searchColumns,
     }),
@@ -1711,9 +1712,9 @@ function clearSearch() {
               <div class={`flex-1 min-h-0 min-w-0 flex gap-3 p-3 ${nnPanelLayoutClasses}`}>
                 <div class={`flex flex-col gap-4 ${nnPanelSidebarClasses}`}>
                   {#if isClinicalRoute}
-                    <div class="flex items-center gap-2 rounded-full border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 p-1">
+                    <div class="flex items-center gap-2 rounded-full border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 p-1 w-full">
                       <button
-                        class={`px-3 py-1 rounded-full text-xs font-semibold ${
+                        class={`px-3 py-1 rounded-full text-xs font-semibold flex-1 text-center ${
                           clinicalSearchTab === "image"
                             ? "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-100 shadow"
                             : "text-slate-500 dark:text-slate-400"
@@ -1723,7 +1724,7 @@ function clearSearch() {
                         Image NN
                       </button>
                       <button
-                        class={`px-3 py-1 rounded-full text-xs font-semibold ${
+                        class={`px-3 py-1 rounded-full text-xs font-semibold flex-1 text-center ${
                           clinicalSearchTab === "text"
                             ? "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-100 shadow"
                             : "text-slate-500 dark:text-slate-400"
@@ -1794,6 +1795,16 @@ function clearSearch() {
                           className="w-full text-base shadow-md shadow-slate-300/40 dark:shadow-black/40"
                           bind:value={searchQuery}
                         />
+                        <div class="flex items-center gap-2">
+                          <Button
+                            label="Run NN Search"
+                            onClick={() => void doSearch(searchQuery, searchMode)}
+                            disabled={!searcher || searchQuery.trim() === ""}
+                          />
+                          {#if searcherStatus}
+                            <span class="text-xs text-slate-500 dark:text-slate-400">{searcherStatus}</span>
+                          {/if}
+                        </div>
                         <SearchFilters
                           disabled={!searcher}
                           coordinator={coordinator}

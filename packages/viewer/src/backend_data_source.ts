@@ -83,6 +83,12 @@ export class BackendDataSource implements DataSource {
         metadata.props.data.vectorNeighborsEndpoint,
       );
     }
+    if (metadata.props?.data?.textSearchEndpoint) {
+      metadata.props.data.textSearchEndpoint = joinUrl(
+        this.serverUrl,
+        metadata.props.data.textSearchEndpoint,
+      );
+    }
 
     onStatus("Initializing DuckDB...");
     let dbType = metadata.database?.type ?? "wasm";

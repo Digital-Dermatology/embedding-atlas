@@ -129,6 +129,9 @@ class LazyCombinedEmbeddingPipeline:
     def embed_bytes(self, data: bytes):
         return self._ensure_pipeline().embed_bytes(data)
 
+    def encode_text(self, text: str):
+        return self._ensure_pipeline().encode_text(text)
+
     def project_vector(self, vector):
         return self._ensure_pipeline().project_vector(vector)
 

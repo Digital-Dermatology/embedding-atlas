@@ -581,6 +581,8 @@ def main(
                 "batchEndpoint": "upload-embeddings",
             }
             logger.info("Upload pipeline enabled.")
+            props.setdefault("data", {})
+            props["data"]["textSearchEndpoint"] = "text-neighbors"
             if vector is not None and vector in df.columns:
                 vector_neighbors_endpoint = "point-neighbors"
                 try:
