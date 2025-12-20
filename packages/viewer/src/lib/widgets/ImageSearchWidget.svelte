@@ -61,6 +61,13 @@ interface FilterRow {
     maxInput: string;
   }
 
+interface CropSelection {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 const dispatch = createEventDispatcher<$$Events>();
 
 let {
@@ -89,6 +96,12 @@ let currentNeighbors: Neighbor[] = [];
 let lastRequestK: number | null = null;
 let refetchInProgress = false;
 let lastQueryPoint: { x: number; y: number } | null = null;
+let previewImageEl: HTMLImageElement | null = $state(null);
+let cropSelection = $state.raw<CropSelection | null>(null);
+let useCropSelection = $state(false);
+let draggingSelection = $state(false);
+let dragStart = $state.raw<{ x: number; y: number } | null>(null);
+let dragEnd = $state.raw<{ x: number; y: number } | null>(null);
 
 let filterableColumns = $derived(
     columns.filter((col: ColumnDesc) => col.jsType === "string" || col.jsType === "string[]" || col.jsType === "number"),
@@ -97,6 +110,7 @@ let columnOptions = $derived(filterableColumns.map((col: ColumnDesc) => ({ value
 const resolvedUploadBlockedMessage = $derived(
   uploadBlockedMessage ?? "Complete the clinical survey before uploading another case.",
 );
+const previewSelection = $derived(buildPreviewSelection());
 
   function createEmptyFilterRow(): FilterRow {
     return {
@@ -121,6 +135,12 @@ const resolvedUploadBlockedMessage = $derived(
       URL.revokeObjectURL(previewUrl);
     }
     previewUrl = null;
+    cropSelection = null;
+    useCropSelection = false;
+    draggingSelection = false;
+    dragStart = null;
+    dragEnd = null;
+    previewImageEl = null;
   }
 
   function onFileClick(event: MouseEvent) {
@@ -144,6 +164,100 @@ const resolvedUploadBlockedMessage = $derived(
     previewUrl = URL.createObjectURL(file);
     status = "";
     errorMessage = null;
+  }
+
+  function onPreviewLoad(event: Event) {
+    previewImageEl = event.currentTarget as HTMLImageElement;
+  }
+
+  function clamp01(value: number) {
+    return Math.min(1, Math.max(0, value));
+  }
+
+  function getNormalizedPointer(event: PointerEvent) {
+    if (!previewImageEl) {
+      return null;
+    }
+    const rect = previewImageEl.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      return null;
+    }
+    const x = clamp01((event.clientX - rect.left) / rect.width);
+    const y = clamp01((event.clientY - rect.top) / rect.height);
+    return { x, y };
+  }
+
+  function buildPreviewSelection(): CropSelection | null {
+    if (draggingSelection && dragStart && dragEnd) {
+      return buildSelectionFromPoints(dragStart, dragEnd);
+    }
+    return cropSelection;
+  }
+
+  function buildSelectionFromPoints(
+    start: { x: number; y: number },
+    end: { x: number; y: number },
+  ): CropSelection {
+    const x = Math.min(start.x, end.x);
+    const y = Math.min(start.y, end.y);
+    const width = Math.max(0, Math.abs(end.x - start.x));
+    const height = Math.max(0, Math.abs(end.y - start.y));
+    return { x, y, width, height };
+  }
+
+  function beginSelection(event: PointerEvent) {
+    if (disabled || uploading || !previewImageEl) {
+      return;
+    }
+    const point = getNormalizedPointer(event);
+    if (!point) {
+      return;
+    }
+    draggingSelection = true;
+    dragStart = point;
+    dragEnd = point;
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+  }
+
+  function updateSelection(event: PointerEvent) {
+    if (!draggingSelection || !dragStart) {
+      return;
+    }
+    const point = getNormalizedPointer(event);
+    if (!point) {
+      return;
+    }
+    dragEnd = point;
+  }
+
+  function finishSelection(event: PointerEvent) {
+    if (!draggingSelection || !dragStart || !dragEnd) {
+      draggingSelection = false;
+      dragStart = null;
+      dragEnd = null;
+      return;
+    }
+    const nextSelection = buildSelectionFromPoints(dragStart, dragEnd);
+    const minSize = 0.01;
+    if (nextSelection.width >= minSize && nextSelection.height >= minSize) {
+      cropSelection = nextSelection;
+      useCropSelection = true;
+    } else {
+      cropSelection = null;
+      useCropSelection = false;
+    }
+    draggingSelection = false;
+    dragStart = null;
+    dragEnd = null;
+    const target = event.currentTarget as HTMLElement;
+    if (target.hasPointerCapture(event.pointerId)) {
+      target.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  function clearSelection() {
+    cropSelection = null;
+    useCropSelection = false;
   }
 
   onDestroy(() => {
@@ -397,8 +511,9 @@ const resolvedUploadBlockedMessage = $derived(
     if (!file) {
       throw new Error("No image selected.");
     }
+    const uploadFile = await resolveUploadFile();
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("file", uploadFile);
     const resp = await fetch(`${endpoint}?k=${encodeURIComponent(kValue)}`, {
       method: "POST",
       body: formData,
@@ -418,6 +533,36 @@ const resolvedUploadBlockedMessage = $derived(
       }
     }
     return { neighbors, queryPoint };
+  }
+
+  async function resolveUploadFile(): Promise<File> {
+    const activeFile = file;
+    if (!activeFile || !useCropSelection || !cropSelection) {
+      return activeFile!;
+    }
+    const bitmap = await createImageBitmap(activeFile);
+    const sx = Math.floor(cropSelection.x * bitmap.width);
+    const sy = Math.floor(cropSelection.y * bitmap.height);
+    const sw = Math.max(1, Math.floor(cropSelection.width * bitmap.width));
+    const sh = Math.max(1, Math.floor(cropSelection.height * bitmap.height));
+    if (sw <= 1 || sh <= 1) {
+      return activeFile;
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = sw;
+    canvas.height = sh;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      return activeFile;
+    }
+    ctx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, sw, sh);
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, activeFile.type || "image/png"),
+    );
+    if (!blob) {
+      return activeFile;
+    }
+    return new File([blob], activeFile.name, { type: blob.type || activeFile.type });
   }
 
   async function performAutoRefetch(options?: { maxK?: number }): Promise<boolean> {
@@ -547,7 +692,47 @@ const resolvedUploadBlockedMessage = $derived(
   {#if previewUrl}
     <div class="flex flex-col gap-2">
       <span class="text-slate-500 dark:text-slate-400 font-medium">Preview</span>
-      <img src={previewUrl} alt="Uploaded preview" class="rounded-md border border-slate-200 dark:border-slate-700 max-h-48 object-contain bg-slate-100 dark:bg-slate-800" />
+      <div class="flex flex-col gap-2">
+        <div class="relative inline-block max-w-full">
+          <img
+            bind:this={previewImageEl}
+            src={previewUrl}
+            alt="Uploaded preview"
+            class="rounded-md border border-slate-200 dark:border-slate-700 max-h-48 object-contain bg-slate-100 dark:bg-slate-800"
+            onload={onPreviewLoad}
+          />
+          <div
+            class="absolute inset-0 {disabled || uploading ? 'pointer-events-none' : 'cursor-crosshair'}"
+            onpointerdown={beginSelection}
+            onpointermove={updateSelection}
+            onpointerup={finishSelection}
+            onpointerleave={finishSelection}
+          ></div>
+          {#if previewSelection}
+            <div
+              class="absolute border-2 border-amber-400/80 bg-amber-300/20"
+              style="left: {previewSelection.x * 100}%; top: {previewSelection.y * 100}%; width: {previewSelection.width *
+                100}%; height: {previewSelection.height * 100}%;"
+            ></div>
+          {/if}
+        </div>
+        <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+          <span>Drag on the image to select a focus region.</span>
+          {#if cropSelection}
+            <label class="ml-auto flex items-center gap-2">
+              <input
+                type="checkbox"
+                class="accent-blue-500"
+                checked={useCropSelection}
+                onchange={(event) => (useCropSelection = (event.target as HTMLInputElement).checked)}
+                disabled={disabled || uploading}
+              />
+              <span>Use selection</span>
+            </label>
+            <Button label="Clear" onClick={clearSelection} disabled={disabled || uploading} />
+          {/if}
+        </div>
+      </div>
     </div>
   {/if}
 
