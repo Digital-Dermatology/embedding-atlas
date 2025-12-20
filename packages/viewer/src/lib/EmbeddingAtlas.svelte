@@ -117,8 +117,9 @@ interface UploadSearchResultDetail {
   );
   let uploadSearchAvailable = $derived(uploadSearchEnabledFlag !== false);
   let uploadSearchWarning = $derived(uploadSearchEnabledFlag === false);
+  let isClinicalRoute = $derived((activeRoute ?? "").toLowerCase() === "clinical");
   let showUploadSearchWidget = $derived(Boolean(uploadSearchConfig?.endpoint ?? defaultUploadConfig.endpoint));
-  let showBatchUploadWidget = $derived(Boolean(uploadEmbeddingEndpoint));
+  let showBatchUploadWidget = $derived(Boolean(uploadEmbeddingEndpoint) && !isClinicalRoute);
 
   onMount(() => {
     if (typeof window === "undefined") {
@@ -336,7 +337,6 @@ interface UploadSearchResultDetail {
 
   let clinicalFeedbackContext = $state.raw<ClinicalFeedbackContext | null>(null);
 
-  let isClinicalRoute = $derived((activeRoute ?? "").toLowerCase() === "clinical");
   function countSearchResultItems(result: SearchResultState | null): number {
     return result ? result.items.length : 0;
   }
@@ -1673,55 +1673,65 @@ function clearSearch() {
               transition:slide={{ axis: "x", duration: animationDuration }}
             >
               <div class={`flex-1 min-h-0 min-w-0 flex gap-3 p-3 ${nnPanelLayoutClasses}`}>
-                <div class={`flex flex-col gap-3 ${nnPanelSidebarClasses}`}>
-                  {#if showUploadSearchWidget}
-                    <ImageSearchWidget
-                      disabled={!uploadSearchAvailable}
-                      endpoint={uploadSearchEndpoint}
-                      coordinator={coordinator}
-                      table={data.table}
-                      columns={columns}
-                      uploadBlocked={clinicalUploadBlocked}
-                      uploadBlockedMessage={clinicalUploadBlockMessage}
-                      on:result={handleImageSearchResult}
-                    />
-                    {#if uploadSearchWarning}
-                      <div class="rounded-md border border-dashed border-slate-300 dark:border-slate-600 bg-slate-100/70 dark:bg-slate-800/50 text-xs text-slate-500 dark:text-slate-400 px-2 py-1.5">
-                        Image-based neighbor search is currently unavailable.
-                      </div>
-                    {/if}
-                  {/if}
-                  {#if showBatchUploadWidget}
-                    <DatasetUploadWidget
-                      disabled={!uploadSearchAvailable}
-                      endpoint={uploadEmbeddingEndpoint}
-                      uploadBlocked={clinicalUploadBlocked}
-                      uploadBlockedMessage={clinicalUploadBlockMessage}
-                      on:result={(event) => handleDatasetEmbeddingResult((event as unknown as CustomEvent<any>).detail)}
-                      on:select={(event) => handleDatasetSampleSelect((event as unknown as CustomEvent<any>).detail)}
-                      on:clear={handleDatasetClear}
-                    />
-                  {/if}
-                  {#if searcher}
-                    <div class="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm flex flex-col gap-3 p-3">
-                      <div class="flex items-center justify-between gap-2">
-                        <div class="text-sm font-semibold text-slate-600 dark:text-slate-300 select-none">Search</div>
-                        {#if searchModeOptions.filter((x) => x.value != "neighbors").length > 1}
-                          <Select
-                            label="Mode"
-                            options={searchModeOptions.filter((x) => x.value != "neighbors")}
-                            value={searchMode}
-                            onChange={(v) => (searchMode = v)}
-                            class="min-w-[8rem]"
-                          />
-                        {/if}
-                      </div>
-                      <Input
-                        type="search"
-                        placeholder="Search... (e.g., dermatitis)"
-                        className="w-full text-base shadow-md shadow-slate-300/40 dark:shadow-black/40"
-                        bind:value={searchQuery}
+                <div class={`flex flex-col gap-4 ${nnPanelSidebarClasses}`}>
+                  <div class="flex flex-col gap-2">
+                    <div class="text-sm font-semibold text-slate-600 dark:text-slate-300 select-none">
+                      Image NN Search
+                    </div>
+                    {#if showUploadSearchWidget}
+                      <ImageSearchWidget
+                        disabled={!uploadSearchAvailable}
+                        endpoint={uploadSearchEndpoint}
+                        coordinator={coordinator}
+                        table={data.table}
+                        columns={columns}
+                        uploadBlocked={clinicalUploadBlocked}
+                        uploadBlockedMessage={clinicalUploadBlockMessage}
+                        on:result={handleImageSearchResult}
                       />
+                      {#if uploadSearchWarning}
+                        <div class="rounded-md border border-dashed border-slate-300 dark:border-slate-600 bg-slate-100/70 dark:bg-slate-800/50 text-xs text-slate-500 dark:text-slate-400 px-2 py-1.5">
+                          Image-based neighbor search is currently unavailable.
+                        </div>
+                      {/if}
+                    {/if}
+                    {#if showBatchUploadWidget}
+                      <DatasetUploadWidget
+                        disabled={!uploadSearchAvailable}
+                        endpoint={uploadEmbeddingEndpoint}
+                        uploadBlocked={clinicalUploadBlocked}
+                        uploadBlockedMessage={clinicalUploadBlockMessage}
+                        on:result={(event) => handleDatasetEmbeddingResult((event as unknown as CustomEvent<any>).detail)}
+                        on:select={(event) => handleDatasetSampleSelect((event as unknown as CustomEvent<any>).detail)}
+                        on:clear={handleDatasetClear}
+                      />
+                    {/if}
+                  </div>
+                  {#if searcher}
+                    <div class="flex flex-col gap-2">
+                      <div class="text-sm font-semibold text-slate-600 dark:text-slate-300 select-none">
+                        Text NN Search
+                      </div>
+                      <div class="rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm flex flex-col gap-3 p-3">
+                        <div class="flex items-center justify-between gap-2">
+                          <div class="text-sm font-semibold text-slate-600 dark:text-slate-300 select-none">Search</div>
+                          {#if searchModeOptions.filter((x) => x.value != "neighbors").length > 1}
+                            <Select
+                              label="Mode"
+                              options={searchModeOptions.filter((x) => x.value != "neighbors")}
+                              value={searchMode}
+                              onChange={(v) => (searchMode = v)}
+                              class="min-w-[8rem]"
+                            />
+                          {/if}
+                        </div>
+                        <Input
+                          type="search"
+                          placeholder="Search... (e.g., dermatitis)"
+                          className="w-full text-base shadow-md shadow-slate-300/40 dark:shadow-black/40"
+                          bind:value={searchQuery}
+                        />
+                      </div>
                     </div>
                   {/if}
                   {#if shouldShowClinicalFeedback}
