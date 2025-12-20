@@ -1205,8 +1205,6 @@ function clearSearch() {
     const _filters = textSearchFilters;
     if (searchQuery == "") {
       clearSearch();
-    } else {
-      debouncedSearch(searchQuery, searchMode);
     }
   });
 
