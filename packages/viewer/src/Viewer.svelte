@@ -28,8 +28,46 @@
   let initialState: any | null = $state.raw(null);
   let config: Partial<EmbeddingAtlasProps> | null = $state.raw(null);
   let activeRoute: string | null = $state(null);
+  let routeTabs: { label: string; route: string | null; href: string }[] = $state([]);
 
   type RouteSource = "query" | "path" | null;
+
+  function routeLabel(route: string | null) {
+    if (!route) {
+      return "Atlas";
+    }
+    return route
+      .replace(/[-_]+/g, " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  }
+
+  function routeHref(route: string | null) {
+    if (!route) {
+      return "/";
+    }
+    return `/${encodeURIComponent(route)}`;
+  }
+
+  function buildRouteTabs(cfg: Partial<EmbeddingAtlasProps> | null, currentRoute: string | null) {
+    const variants = cfg?.initialStateVariants ?? null;
+    const routes = variants ? Object.keys(variants) : [];
+    const seen = new Set<string>();
+    const tabs: { label: string; route: string | null; href: string }[] = [
+      { label: routeLabel(null), route: null, href: routeHref(null) },
+    ];
+    if (currentRoute && !routes.includes(currentRoute)) {
+      routes.push(currentRoute);
+    }
+    routes.forEach((route) => {
+      const trimmed = route?.trim();
+      if (!trimmed || seen.has(trimmed)) {
+        return;
+      }
+      seen.add(trimmed);
+      tabs.push({ label: routeLabel(trimmed), route: trimmed, href: routeHref(trimmed) });
+    });
+    return tabs;
+  }
 
   function atlasRouteFromQuery(): string | null {
     if (typeof window === "undefined" || !window.location) {
@@ -143,6 +181,7 @@ onMount(async () => {
     } else {
       initialState = resolveInitialState(config);
     }
+    routeTabs = buildRouteTabs(config, activeRoute);
     ready = true;
   } catch (e: any) {
     error = true;
@@ -188,6 +227,7 @@ onMount(async () => {
       onStateChange={debounce(onStateChange, 200)}
       cache={dataSource.cache}
       activeRoute={activeRoute}
+      routeTabs={routeTabs}
     />
   {:else}
     <div

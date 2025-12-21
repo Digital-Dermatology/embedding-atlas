@@ -151,7 +151,6 @@
 
 <div class="rounded-xl border border-emerald-700/80 bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-800 text-sm text-emerald-50 flex flex-col gap-4 p-4 shadow-xl shadow-emerald-900/40">
   <div class="flex flex-col gap-1">
-    <span class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300/80 select-none">Clinical Survey</span>
     <div class="text-lg font-semibold text-emerald-50">Search Feedback</div>
     <p class="text-xs text-emerald-200/80">Required before you can upload the next case.</p>
   </div>

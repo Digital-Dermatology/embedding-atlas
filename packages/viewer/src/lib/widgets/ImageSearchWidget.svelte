@@ -29,6 +29,7 @@ interface $$Props {
   uploadBlocked?: boolean;
   uploadBlockedMessage?: string | null;
   maxHeightClass?: string;
+  scrollable?: boolean;
 }
 
 interface $$Events {
@@ -56,6 +57,7 @@ let {
   uploadBlocked = false,
   uploadBlockedMessage = null,
   maxHeightClass = "max-h-[50vh]",
+  scrollable = true,
 } = $props();
 
 const MAX_AUTO_REFETCH_K = 5000;
@@ -328,7 +330,11 @@ const resolvedUploadBlockedMessage = $derived(
   }
 </script>
 
-<div class={`rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm flex flex-col gap-3 p-3 ${maxHeightClass} overflow-y-auto`}>
+<div
+  class={`rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm flex flex-col gap-3 p-3 ${
+    scrollable ? `${maxHeightClass} overflow-y-auto` : ""
+  }`}
+>
   <div class="flex flex-col gap-1">
     <span class="text-base font-semibold text-slate-700 dark:text-slate-200">Image Neighbor Search</span>
     <span class="text-slate-500 dark:text-slate-400">Upload an image to find visually similar samples in SkinMap.</span>

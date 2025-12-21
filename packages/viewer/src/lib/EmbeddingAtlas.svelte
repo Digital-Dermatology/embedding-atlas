@@ -82,6 +82,7 @@ interface UploadSearchResultDetail {
     data,
     initialState,
     activeRoute = null,
+    routeTabs = null,
     searcher: specifiedSearcher,
     searchColumns = null,
     embeddingViewConfig = null,
@@ -122,6 +123,11 @@ interface UploadSearchResultDetail {
   let showUploadSearchWidget = $derived(Boolean(uploadSearchConfig?.endpoint ?? defaultUploadConfig.endpoint));
   let showBatchUploadWidget = $derived(Boolean(uploadEmbeddingEndpoint) && !isClinicalRoute);
   let clinicalSearchTab = $state<"image" | "text">("image");
+  let normalizedActiveRoute = $derived((activeRoute ?? "").toLowerCase());
+
+  function isRouteActive(route: string | null) {
+    return (route ?? "").toLowerCase() === normalizedActiveRoute;
+  }
 
   onMount(() => {
     if (typeof window === "undefined") {
@@ -1466,6 +1472,23 @@ function clearSearch() {
           <img src={skinmapLogo} alt="SkinMap logo" class="h-8 w-auto rounded-md" />
           <div class="text-lg font-semibold tracking-wide text-slate-700 dark:text-slate-200">SkinMap</div>
         </div>
+        {#if routeTabs && routeTabs.length > 0}
+          <div class="flex items-center gap-2">
+            {#each routeTabs as tab (tab.route ?? tab.label)}
+              <a
+                href={tab.href}
+                class={`px-3 py-1 rounded-full text-xs font-semibold border ${
+                  isRouteActive(tab.route)
+                    ? "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-100 border-slate-300 dark:border-slate-600 shadow"
+                    : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                }`}
+                aria-current={isRouteActive(tab.route) ? "page" : undefined}
+              >
+                {tab.label}
+              </a>
+            {/each}
+          </div>
+        {/if}
       </div>
       <div class="flex items-center gap-3 flex-1 min-w-0">
         {#if showEmbedding}
@@ -1751,7 +1774,11 @@ function clearSearch() {
                     </div>
                   {/if}
                   {#if !isClinicalRoute || clinicalSearchTab === "image"}
-                    <div class="flex flex-col gap-2 max-h-[70vh] overflow-y-auto pr-1">
+                    <div
+                      class={`flex flex-col gap-2 ${
+                        isClinicalRoute ? "" : "max-h-[70vh] overflow-y-auto pr-1"
+                      }`}
+                    >
                       <div class="text-sm font-semibold text-slate-600 dark:text-slate-300 select-none">
                         Image NN Search
                       </div>
@@ -1764,7 +1791,7 @@ function clearSearch() {
                           columns={columns}
                           uploadBlocked={clinicalUploadBlocked}
                           uploadBlockedMessage={clinicalUploadBlockMessage}
-                          maxHeightClass={isClinicalRoute ? "max-h-[70vh]" : undefined}
+                          scrollable={!isClinicalRoute}
                           on:result={handleImageSearchResult}
                         />
                         {#if uploadSearchWarning}
@@ -1779,6 +1806,7 @@ function clearSearch() {
                           endpoint={uploadEmbeddingEndpoint}
                           uploadBlocked={clinicalUploadBlocked}
                           uploadBlockedMessage={clinicalUploadBlockMessage}
+                          scrollLists={!isClinicalRoute}
                           on:result={(event) => handleDatasetEmbeddingResult((event as unknown as CustomEvent<any>).detail)}
                           on:select={(event) => handleDatasetSampleSelect((event as unknown as CustomEvent<any>).detail)}
                           on:clear={handleDatasetClear}

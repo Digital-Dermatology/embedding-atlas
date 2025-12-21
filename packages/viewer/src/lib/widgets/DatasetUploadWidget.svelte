@@ -14,6 +14,7 @@
     disabled?: boolean;
     uploadBlocked?: boolean;
     uploadBlockedMessage?: string | null;
+    scrollLists?: boolean;
   }
 
   interface $$Events {
@@ -33,6 +34,7 @@
     disabled = false,
     uploadBlocked = false,
     uploadBlockedMessage = null,
+    scrollLists = true,
   }: $$Props = $props();
 
   const defaultBlockedMessage =
@@ -201,7 +203,11 @@ let truncated = $state(false);
   {#if files.length > 0}
     <div class="flex flex-col gap-1 text-xs text-slate-500 dark:text-slate-400">
       <span class="font-medium text-slate-600 dark:text-slate-300">{files.length} file{files.length === 1 ? "" : "s"} selected</span>
-      <div class="max-h-24 overflow-y-auto rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-2 flex flex-col gap-1">
+      <div
+        class="rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-2 flex flex-col gap-1"
+        class:max-h-24={scrollLists}
+        class:overflow-y-auto={scrollLists}
+      >
         {#each files as file (file.name)}
           <div class="flex items-center gap-2">
             <span class="truncate flex-1" title={file.name}>{file.name}</span>
@@ -240,7 +246,7 @@ let truncated = $state(false);
   {#if results.length > 0}
     <div class="flex flex-col gap-2">
       <div class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">Embedded samples</div>
-      <div class="flex flex-col gap-1 max-h-40 overflow-y-auto pr-1">
+      <div class="flex flex-col gap-1 pr-1" class:max-h-40={scrollLists} class:overflow-y-auto={scrollLists}>
         {#each results as point (point.id)}
           <button
             class="flex items-center gap-2 text-left rounded-md border border-transparent hover:border-amber-200 dark:hover:border-amber-700 px-2 py-1 transition-colors"
@@ -269,7 +275,7 @@ let truncated = $state(false);
   {#if errors.length > 0}
     <div class="flex flex-col gap-1">
       <div class="text-xs text-red-500 dark:text-red-400 uppercase tracking-wide">Errors</div>
-      <div class="flex flex-col gap-1 max-h-32 overflow-y-auto pr-1">
+      <div class="flex flex-col gap-1 pr-1" class:max-h-32={scrollLists} class:overflow-y-auto={scrollLists}>
         {#each errors as issue, idx (issue.label + idx)}
           <div class="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded px-2 py-1">
             <span class="font-medium">{issue.label}</span>: {issue.message}

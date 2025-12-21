@@ -23,6 +23,9 @@ export interface EmbeddingAtlasAssets {
 }
 
 export interface EmbeddingAtlasProps {
+  /** Optional route tabs to render in the header. */
+  routeTabs?: { label: string; route: string | null; href: string }[] | null;
+
   /** The Mosaic coordinator. */
   coordinator: Coordinator;
 
