@@ -192,6 +192,22 @@ interface UploadSearchResultDetail {
   );
   let nnPanelFullWidth = $derived(showNNPanel && !showMainView && !showWidgetPanel);
   let widgetPanelFullWidth = $derived(showWidgetPanel && !showMainView && !showNNPanel);
+  let isCompactLayout = $state(false);
+
+  onMount(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return;
+    }
+    const media = window.matchMedia("(min-width: 1280px)");
+    const handleChange = (event: MediaQueryList | MediaQueryListEvent) => {
+      isCompactLayout = !event.matches;
+    };
+    handleChange(media);
+    media.addEventListener("change", handleChange);
+    return () => {
+      media.removeEventListener("change", handleChange);
+    };
+  });
 
   const tableInfo = new TableInfo(coordinator, data.table);
 
@@ -1620,9 +1636,16 @@ function clearSearch() {
       </div>
     </div>
     </div>
-    <div class="flex flex-row overflow-hidden h-full">
+    <div
+      class={`flex flex-1 min-h-0 ${
+        isCompactLayout ? "flex-col overflow-y-auto" : "flex-row overflow-hidden"
+      }`}
+    >
       {#if showTable || showEmbedding}
-        <div class="flex-1 flex flex-col mt-0 ml-2 mb-2 mr-2 overflow-hidden">
+        <div
+          class="flex-1 flex flex-col mt-0 ml-2 mb-2 mr-2"
+          class:overflow-hidden={!isCompactLayout}
+        >
           {#if showEmbedding && data.projection != null}
             <div class="flex-1 relative bg-white dark:bg-black rounded-md overflow-hidden">
               <EmbeddingView
@@ -1734,7 +1757,10 @@ function clearSearch() {
           ></div>
         {/if}
         <div
-          class="flex flex-row gap-2 mr-2 mb-2 h-full"
+          class="flex gap-2 mr-2 mb-2"
+          class:flex-col={isCompactLayout}
+          class:flex-row={!isCompactLayout}
+          class:h-full={!isCompactLayout}
           class:ml-2={!showMainView}
           class:flex-1={!showMainView}
           class:min-w-0={!showMainView}
@@ -1742,7 +1768,7 @@ function clearSearch() {
           {#if showNNPanel}
             <div
               class="flex flex-col bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm overflow-hidden h-full min-w-0"
-              style:width={showMainView ? `${nnPanelWidth}px` : nnPanelFullWidth ? "100%" : null}
+              style:width={showMainView && !isCompactLayout ? `${nnPanelWidth}px` : nnPanelFullWidth ? "100%" : null}
               class:flex-1={!showMainView}
               class:w-full={nnPanelFullWidth}
               transition:slide={{ axis: "x", duration: animationDuration }}
@@ -1947,7 +1973,7 @@ function clearSearch() {
             {/if}
             <div
               class="flex flex-col bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-sm overflow-hidden h-full min-w-0"
-              style:width={showMainView ? `${widgetPanelWidth}px` : widgetPanelFullWidth ? "100%" : null}
+              style:width={showMainView && !isCompactLayout ? `${widgetPanelWidth}px` : widgetPanelFullWidth ? "100%" : null}
               class:flex-1={!showMainView}
               class:w-full={widgetPanelFullWidth}
               transition:slide={{ axis: "x", duration: animationDuration }}
