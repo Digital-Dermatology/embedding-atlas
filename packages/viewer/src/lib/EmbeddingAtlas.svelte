@@ -1504,6 +1504,7 @@ function clearSearch() {
               </a>
             {/each}
           </div>
+          <div class="h-6 w-px bg-slate-300 dark:bg-slate-700"></div>
         {/if}
       </div>
       <div class="flex items-center gap-3 flex-1 min-w-0">
@@ -1557,14 +1558,18 @@ function clearSearch() {
             <Slider bind:value={minimumDensityExpFactor} min={-4} max={4} step={0.1} />
           </div>
         {/if}
-        <FilteredCount filter={crossFilter} table={data.table} />
-        <button
-          class="flex px-2.5 select-none items-center justify-center text-slate-500 dark:text-slate-300 rounded-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 focus-visible:outline-2 outline-blue-600 -outline-offset-1"
-          onclick={resetFilter}
-          title="Clear filters"
-        >
-          Clear
-        </button>
+        {#if !isClinicalRoute && !isCompactLayout}
+          <FilteredCount filter={crossFilter} table={data.table} />
+        {/if}
+        {#if !isClinicalRoute}
+          <button
+            class="flex px-2.5 select-none items-center justify-center text-slate-500 dark:text-slate-300 rounded-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 focus-visible:outline-2 outline-blue-600 -outline-offset-1"
+            onclick={resetFilter}
+            title="Clear filters"
+          >
+            Clear
+          </button>
+        {/if}
         <div class="flex flex-row gap-0.5 items-center">
           <PopupButton icon={IconSettings} title="Options">
             <div class="min-w-[420px]">

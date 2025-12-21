@@ -33,7 +33,7 @@
   type RouteSource = "query" | "path" | null;
 
   function routeLabel(route: string | null) {
-    if (!route) {
+    if (!route || route.toLowerCase() === "atlas") {
       return "Atlas";
     }
     return route
@@ -42,7 +42,7 @@
   }
 
   function routeHref(route: string | null) {
-    if (!route) {
+    if (!route || route.toLowerCase() === "atlas") {
       return "/";
     }
     return `/${encodeURIComponent(route)}`;
@@ -52,19 +52,24 @@
     const variants = cfg?.initialStateVariants ?? null;
     const routes = variants ? Object.keys(variants) : [];
     const seen = new Set<string>();
-    const tabs: { label: string; route: string | null; href: string }[] = [
-      { label: routeLabel(null), route: null, href: routeHref(null) },
-    ];
+    const tabs: { label: string; route: string | null; href: string }[] = [];
     if (currentRoute && !routes.includes(currentRoute)) {
       routes.push(currentRoute);
     }
+    routes.unshift(null as unknown as string);
     routes.forEach((route) => {
-      const trimmed = route?.trim();
-      if (!trimmed || seen.has(trimmed)) {
+      const trimmed = route?.trim() ?? null;
+      const normalizedRoute = trimmed && trimmed.toLowerCase() === "atlas" ? null : trimmed;
+      const seenKey = normalizedRoute ? normalizedRoute.toLowerCase() : "__root__";
+      if (seen.has(seenKey)) {
         return;
       }
-      seen.add(trimmed);
-      tabs.push({ label: routeLabel(trimmed), route: trimmed, href: routeHref(trimmed) });
+      seen.add(seenKey);
+      tabs.push({
+        label: routeLabel(normalizedRoute),
+        route: normalizedRoute,
+        href: routeHref(normalizedRoute),
+      });
     });
     return tabs;
   }
