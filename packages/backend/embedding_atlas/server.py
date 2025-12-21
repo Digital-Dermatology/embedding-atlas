@@ -207,8 +207,12 @@ def make_server(
         return None
 
     def _clinical_feedback_summary(payload: dict, record: dict):
-        answers = payload.get("answers") if isinstance(payload.get("answers"), dict) else {}
-        search = payload.get("search") if isinstance(payload.get("search"), dict) else {}
+        answers = (
+            payload.get("answers") if isinstance(payload.get("answers"), dict) else {}
+        )
+        search = (
+            payload.get("search") if isinstance(payload.get("search"), dict) else {}
+        )
         top_results = search.get("topResults")
         distances = []
         if isinstance(top_results, list):
@@ -513,9 +517,7 @@ def make_server(
     @app.get("/data/text-neighbors")
     async def text_neighbors(q: str, k: int = 16):
         if upload_pipeline is None:
-            return JSONResponse(
-                {"error": "Text search unavailable."}, status_code=404
-            )
+            return JSONResponse({"error": "Text search unavailable."}, status_code=404)
         if q is None or str(q).strip() == "":
             return JSONResponse({"neighbors": [], "query": None})
 
