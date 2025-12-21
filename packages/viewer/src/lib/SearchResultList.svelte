@@ -59,8 +59,30 @@
   }: Props = $props();
 
   function markHighlight(element: HTMLElement, highlight: string) {
-    let m = new Mark(element);
-    m.mark(highlight);
+    let marker = new Mark(element);
+    let current = highlight;
+    const apply = (value: string) => {
+      marker.unmark({
+        done: () => {
+          if (value && value.trim() !== "") {
+            marker.mark(value);
+          }
+        },
+      });
+    };
+    apply(current);
+    return {
+      update(value: string) {
+        if (value === current) {
+          return;
+        }
+        current = value;
+        apply(current);
+      },
+      destroy() {
+        marker.unmark();
+      },
+    };
   }
 
   let listContainer: HTMLElement | null = null;

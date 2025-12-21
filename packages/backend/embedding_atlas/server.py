@@ -4,6 +4,7 @@ import asyncio
 import concurrent.futures
 import json
 import os
+import math
 import mimetypes
 import re
 import threading
@@ -183,6 +184,66 @@ def make_server(
                 pass
         return str(value)
 
+    def _is_safe_predicate(predicate: str) -> bool:
+        if predicate is None:
+            return True
+        lowered = predicate.lower()
+        if ";" in predicate:
+            return False
+        if "--" in predicate or "/*" in predicate or "*/" in predicate:
+            return False
+        if "attach " in lowered or "copy " in lowered:
+            return False
+        return True
+
+    def _safe_float(value):
+        if isinstance(value, (int, float)) and math.isfinite(value):
+            return float(value)
+        return None
+
+    def _safe_int(value):
+        if isinstance(value, (int, float)) and math.isfinite(value):
+            return int(value)
+        return None
+
+    def _clinical_feedback_summary(payload: dict, record: dict):
+        answers = payload.get("answers") if isinstance(payload.get("answers"), dict) else {}
+        search = payload.get("search") if isinstance(payload.get("search"), dict) else {}
+        top_results = search.get("topResults")
+        distances = []
+        if isinstance(top_results, list):
+            for item in top_results:
+                if isinstance(item, dict):
+                    dist = _safe_float(item.get("distance"))
+                    if dist is not None:
+                        distances.append(dist)
+        avg_distance = sum(distances) / len(distances) if distances else None
+        min_distance = min(distances) if distances else None
+        max_distance = max(distances) if distances else None
+        benefit_score = _safe_int(answers.get("benefitScore"))
+        total_results = _safe_int(search.get("totalResults"))
+        summary = {
+            "id": record.get("id"),
+            "receivedAt": record.get("receivedAt"),
+            "dataset": record.get("dataset"),
+            "route": record.get("route"),
+            "client": record.get("client"),
+            "searchSignature": payload.get("searchSignature"),
+            "mode": search.get("mode"),
+            "queryDisplay": search.get("queryDisplay"),
+            "benefitScore": benefit_score,
+            "differentialDiagnosisInTop10": answers.get("differentialDiagnosisInTop10"),
+            "wantsComment": answers.get("wantsComment"),
+            "comment": answers.get("comment"),
+            "totalResults": total_results,
+            "avgDistance": avg_distance,
+            "minDistance": min_distance,
+            "maxDistance": max_distance,
+            "queryRowIndex": record.get("queryRowIndex"),
+            "queryRowId": record.get("queryRowId"),
+        }
+        return summary
+
     def _locate_row_by_identifier(raw_identifier: str):
         if id_column is None or id_column not in dataset_df.columns:
             return None, None
@@ -344,13 +405,35 @@ def make_server(
                 and id_column in query_row.index
             ):
                 record["queryRowId"] = _json_scalar(query_row[id_column])
+        summary_fields = [
+            "id",
+            "receivedAt",
+            "dataset",
+            "route",
+            "client",
+            "searchSignature",
+            "mode",
+            "queryDisplay",
+            "benefitScore",
+            "differentialDiagnosisInTop10",
+            "wantsComment",
+            "comment",
+            "totalResults",
+            "avgDistance",
+            "minDistance",
+            "maxDistance",
+            "queryRowIndex",
+            "queryRowId",
+        ]
         try:
             with feedback_lock:
                 if query_row is not None:
                     query_images = _persist_query_images(record["id"], query_row)
                     if query_images:
                         record["queryImages"] = query_images
+                summary = _clinical_feedback_summary(payload, record)
                 data_source.append_feedback("clinical", record)
+                data_source.append_feedback_csv("feedback", summary, summary_fields)
         except Exception:
             return JSONResponse({"error": "Failed to store feedback."}, status_code=500)
         return JSONResponse({"status": "ok"})
@@ -382,7 +465,10 @@ def make_server(
                 {"error": f"Failed to embed image: {exc}"}, status_code=500
             )
 
-        search_limit = max(1, min(k, 1000))
+        try:
+            search_limit = max(1, min(int(k), max_neighbor_results))
+        except (TypeError, ValueError):
+            search_limit = max_neighbor_results
         try:
             indices, distances = upload_pipeline.find_nearest_neighbors(
                 vector, k=search_limit
@@ -440,7 +526,10 @@ def make_server(
                 {"error": f"Failed to embed text: {exc}"}, status_code=500
             )
 
-        search_limit = max(1, min(k, 1000))
+        try:
+            search_limit = max(1, min(int(k), max_neighbor_results))
+        except (TypeError, ValueError):
+            search_limit = max_neighbor_results
         try:
             indices, distances = upload_pipeline.find_nearest_neighbors(
                 vector, k=search_limit
@@ -598,7 +687,7 @@ def make_server(
         row_index, actual_identifier = _locate_row_by_identifier(id)
         if row_index is None:
             return JSONResponse(
-                {"error": f"Identifier '{identifier}' not found."}, status_code=404
+                {"error": f"Identifier '{id}' not found."}, status_code=404
             )
 
         try:
@@ -711,6 +800,15 @@ def make_server(
                 "csv": "(FORMAT CSV)",
                 "parquet": "(FORMAT parquet)",
             }
+            if format not in formats:
+                return JSONResponse(
+                    {"error": f"Unsupported export format '{format}'."},
+                    status_code=400,
+                )
+            if predicate is not None and not _is_safe_predicate(str(predicate)):
+                return JSONResponse(
+                    {"error": "Unsafe predicate rejected."}, status_code=400
+                )
             conn = get_duckdb_connection()
             with conn.cursor() as cursor:
                 filename = ".selection-" + str(uuid.uuid4()) + ".tmp"

@@ -14,22 +14,41 @@ export function debounce<T extends any[]>(func: (...args: T) => void, time: numb
   return perform;
 }
 
-export function startDrag(e1: MouseEvent, callback: (dx: number, dy: number) => void) {
+export function startDrag(e1: MouseEvent | PointerEvent, callback: (dx: number, dy: number) => void) {
   e1.preventDefault();
   let x1 = e1.pageX;
   let y1 = e1.pageY;
-  let mousemove = (e2: MouseEvent) => {
+  const isPointer = "pointerId" in e1;
+  const pointerId = isPointer ? e1.pointerId : null;
+  const target = (e1.currentTarget as HTMLElement | null) ?? null;
+  if (isPointer && pointerId != null && target?.setPointerCapture) {
+    target.setPointerCapture(pointerId);
+  }
+  const move = (e2: MouseEvent | PointerEvent) => {
     e2.preventDefault();
     let dx = e2.pageX - x1;
     let dy = e2.pageY - y1;
     callback(dx, dy);
   };
-  let mouseup = () => {
-    window.removeEventListener("mousemove", mousemove);
-    window.removeEventListener("mouseup", mouseup);
+  const up = () => {
+    if (isPointer && pointerId != null && target?.releasePointerCapture) {
+      target.releasePointerCapture(pointerId);
+    }
+    if (isPointer) {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    } else {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    }
   };
-  window.addEventListener("mousemove", mousemove);
-  window.addEventListener("mouseup", mouseup);
+  if (isPointer) {
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  } else {
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+  }
 }
 
 export function downloadBuffer(arrayBuffer: ArrayBuffer | Uint8Array<ArrayBuffer>, fileName: string) {

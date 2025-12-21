@@ -1,5 +1,6 @@
 # Copyright (c) 2025 Apple Inc. Licensed under MIT License.
 
+import csv
 import json
 import os
 import zipfile
@@ -57,6 +58,20 @@ class DataSource:
         with open(path, "a", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False)
             f.write("\n")
+
+    def append_feedback_csv(self, name: str, row: dict, fieldnames: list[str]):
+        self.feedback_path.mkdir(parents=True, exist_ok=True)
+        path = self.feedback_path / f"{name}.csv"
+        write_header = not path.exists()
+        with open(path, "a", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(
+                f,
+                fieldnames=fieldnames,
+                extrasaction="ignore",
+            )
+            if write_header:
+                writer.writeheader()
+            writer.writerow(row)
 
     def make_archive(self, static_path: str):
         io = BytesIO()

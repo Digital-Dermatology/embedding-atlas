@@ -315,6 +315,7 @@ interface UploadSearchResultDetail {
   let searchResultFetchLimit: number = $state(searchPageSize);
   let searchResultBackendHasMore: boolean = $state(false);
   let lastSearchArgs = $state.raw<{ query: any; mode: "full-text" | "vector" | "neighbors" } | null>(null);
+  let searchRequestId = 0;
   let textSearchFilters: UploadSearchFilter[] = $state.raw([]);
   type ClinicalFeedbackContext =
     | {
@@ -575,6 +576,7 @@ interface UploadSearchResultDetail {
       return;
     }
 
+    const requestId = ++searchRequestId;
     searchResultVisible = true;
     searcherStatus = "Searching...";
     uploadSearchDetail = null;
@@ -582,6 +584,9 @@ interface UploadSearchResultDetail {
     searchResultBackendHasMore = false;
 
     await waitForColumns();
+    if (requestId !== searchRequestId) {
+      return;
+    }
 
     const availableModes = searchModeOptions.map((x) => x.value);
     if (availableModes.length === 0) {
@@ -634,6 +639,9 @@ interface UploadSearchResultDetail {
         },
       });
     }
+    if (requestId !== searchRequestId) {
+      return;
+    }
 
     const hasTextFilters = textSearchFilters.some(isFilterActive);
     let filteredSearcherResult = searcherResult;
@@ -654,10 +662,16 @@ interface UploadSearchResultDetail {
         filteredSearcherResult = searcherResult;
       }
     }
+    if (requestId !== searchRequestId) {
+      return;
+    }
 
     let neighborAnchorPoint: { x: number; y: number } | null = null;
     if (resolvedMode === "neighbors") {
       neighborAnchorPoint = await resolveEmbeddingPoint(effectiveQuery);
+    }
+    if (requestId !== searchRequestId) {
+      return;
     }
 
     // Apply predicate in case the searcher does not handle predicate.
@@ -670,6 +684,9 @@ interface UploadSearchResultDetail {
       predicate,
       filteredSearcherResult,
     );
+    if (requestId !== searchRequestId) {
+      return;
+    }
 
     const augmented = augmentSearchResultsWithGroup(result);
     searcherStatus = "";
@@ -1639,7 +1656,7 @@ function clearSearch() {
               <!-- svelte-ignore a11y_no_static_element_interactions -->
               <div
                 class="h-2 cursor-row-resize"
-                onmousedown={(e1) => {
+                onpointerdown={(e1) => {
                   let h0 = tableHeight;
                   startDrag(e1, (_, dy) => (tableHeight = Math.max(60, h0 - dy)));
                 }}
@@ -1681,7 +1698,7 @@ function clearSearch() {
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <div
             class="w-2 -ml-2 cursor-col-resize"
-            onmousedown={(e) => {
+            onpointerdown={(e) => {
               let w0 = firstPanel === "nn" ? nnPanelWidth : widgetPanelWidth;
               startDrag(e, (dx, _) => {
                 if (firstPanel === "nn") {
@@ -1894,7 +1911,7 @@ function clearSearch() {
               <!-- svelte-ignore a11y_no_static_element_interactions -->
               <div
                 class="w-2 cursor-col-resize"
-                onmousedown={(e) => {
+                onpointerdown={(e) => {
                   let w0 = widgetPanelWidth;
                   startDrag(e, (dx, _) => (widgetPanelWidth = Math.max(280, w0 - dx)));
                 }}

@@ -144,6 +144,9 @@ export async function querySearchResultItems(
   predicate: string | null,
   items: { id: any; distance?: number }[],
 ): Promise<SearchResultItem[]> {
+  if (items.length === 0) {
+    return [];
+  }
   let fieldExpressions: string[] = [`${SQL.column(columns.id, table)} AS id`];
   if (columns.x) {
     fieldExpressions.push(`${SQL.column(columns.x, table)} AS x`);
