@@ -352,6 +352,12 @@ def find_available_port(start_port: int, max_attempts: int = 10, host="localhost
     help="Path to a file containing labels for the embedding view. The file should be a data frame with columns 'x', 'y', 'text', and optionally 'level' and 'priority'",
 )
 @click.option(
+    "--label-column",
+    type=str,
+    default=None,
+    help="Column to use for generating automatic cluster labels. If not specified, falls back to the text column.",
+)
+@click.option(
     "--upload-config",
     type=str,
     default=None,
@@ -391,6 +397,7 @@ def main(
     point_size: float | None,
     stop_words: str | None,
     labels: str | None,
+    label_column: str | None,
     upload_config: str | None,
     upload_device: str,
 ):
@@ -536,6 +543,7 @@ def main(
         point_size=point_size,
         stop_words=stop_words_resolved,
         labels=labels_resolved,
+        label_column=label_column,
     )
 
     metadata = {

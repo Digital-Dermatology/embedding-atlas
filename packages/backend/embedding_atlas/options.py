@@ -56,6 +56,10 @@ class EmbeddingAtlasOptions(TypedDict, total=False):
     search_columns:
         A list of column names to include in full-text search. When provided, searches will
         index the concatenation of these columns (in addition to any `text` column supplied).
+
+    label_column:
+        The column name to use for generating automatic cluster labels.
+        If not specified, falls back to the ``text`` column.
     """
 
     table: str | None
@@ -76,6 +80,7 @@ class EmbeddingAtlasOptions(TypedDict, total=False):
 
     initial_state: dict | None
     search_columns: list[str] | None
+    label_column: str | None
 
 
 def make_embedding_atlas_props(**options: Unpack[EmbeddingAtlasOptions]) -> dict:
@@ -134,5 +139,6 @@ def make_embedding_atlas_props(**options: Unpack[EmbeddingAtlasOptions]) -> dict
         set_prop("initialState.version", "0.0.0")
 
     set_prop("searchColumns", options.get("search_columns"))
+    set_prop("initialState.selectedLabelColumn", options.get("label_column"))
 
     return props
