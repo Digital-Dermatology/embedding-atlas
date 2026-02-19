@@ -139,6 +139,6 @@ def make_embedding_atlas_props(**options: Unpack[EmbeddingAtlasOptions]) -> dict
         set_prop("initialState.version", "0.0.0")
 
     set_prop("searchColumns", options.get("search_columns"))
-    set_prop("initialState.selectedLabelColumn", options.get("label_column"))
+    set_prop("initialState.view.selectedLabelColumn", options.get("label_column"))
 
     return props
