@@ -1250,7 +1250,7 @@ function clearSearch() {
   let selectedLabelColumn: string | null = $state(null);
 
   $effect(() => {
-    if (selectedLabelColumn != null && columns.every((c) => c.name !== selectedLabelColumn)) {
+    if (selectedLabelColumn != null && columns.length > 0 && columns.every((c) => c.name !== selectedLabelColumn)) {
       selectedLabelColumn = null;
     }
   });
