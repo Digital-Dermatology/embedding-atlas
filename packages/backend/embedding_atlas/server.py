@@ -1,6 +1,7 @@
 # Copyright (c) 2025 Apple Inc. Licensed under MIT License.
 
 import asyncio
+import base64
 import concurrent.futures
 import json
 import os
@@ -22,7 +23,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from .data_source import DataSource
-from .image_assets import IMAGE_TOKEN_PREFIX
+from .image_assets import IMAGE_TOKEN_PREFIX, detect_image_type
 from .utils import arrow_to_bytes, to_parquet_bytes
 
 
@@ -164,6 +165,96 @@ def make_server(
                 }
             )
         return images
+
+    def _resolve_row_image(row) -> tuple[bytes, str] | None:
+        """Extract the first image asset from a dataset row."""
+        if row is None or not data_source.image_assets:
+            return None
+        for column in data_source.image_assets.keys():
+            try:
+                token = row[column] if hasattr(row, "__getitem__") else None
+            except Exception:
+                token = None
+            if not isinstance(token, str) or not token.startswith(IMAGE_TOKEN_PREFIX):
+                continue
+            suffix = token[len(IMAGE_TOKEN_PREFIX) :]
+            if "/" not in suffix:
+                continue
+            token_column, filename = suffix.split("/", 1)
+            filename = Path(filename).name
+            asset = data_source.get_image_asset(token_column, filename)
+            if asset is None:
+                continue
+            try:
+                content, mime = asset.load()
+                return content, mime
+            except Exception:
+                continue
+        return None
+
+    def _persist_feedback_images(
+        record_id: str,
+        payload: dict,
+        query_row,
+        selected_sample_id,
+    ) -> dict[str, str]:
+        """Save query image and selected best-match image to feedback-images/<record_id>/."""
+        images_dir = data_source.feedback_path / "feedback-images" / record_id
+        saved: dict[str, str] = {}
+
+        # --- query image ---
+        # Upload mode: decode base64 data URL from payload
+        uploaded_data_url = payload.get("uploadedImageDataUrl")
+        if isinstance(uploaded_data_url, str) and uploaded_data_url.startswith("data:"):
+            try:
+                _header, encoded = uploaded_data_url.split(",", 1)
+                content = base64.b64decode(encoded)
+                mime = detect_image_type(content)
+                ext = _extension_for_mime(mime)
+                images_dir.mkdir(parents=True, exist_ok=True)
+                dest = images_dir / f"query{ext}"
+                with open(dest, "wb") as f:
+                    f.write(content)
+                saved["query"] = dest.relative_to(
+                    data_source.feedback_path
+                ).as_posix()
+            except Exception:
+                pass
+        # Neighbors mode: extract from the query row in the dataset
+        elif query_row is not None:
+            result = _resolve_row_image(query_row)
+            if result is not None:
+                content, mime = result
+                ext = _extension_for_mime(mime)
+                images_dir.mkdir(parents=True, exist_ok=True)
+                dest = images_dir / f"query{ext}"
+                with open(dest, "wb") as f:
+                    f.write(content)
+                saved["query"] = dest.relative_to(
+                    data_source.feedback_path
+                ).as_posix()
+
+        # --- best-match image (selected sample) ---
+        if selected_sample_id is not None:
+            sel_row_index, _ = _locate_row_by_identifier(str(selected_sample_id))
+            if sel_row_index is not None:
+                try:
+                    sel_row = dataset_df.iloc[int(sel_row_index)]
+                except Exception:
+                    sel_row = None
+                result = _resolve_row_image(sel_row)
+                if result is not None:
+                    content, mime = result
+                    ext = _extension_for_mime(mime)
+                    images_dir.mkdir(parents=True, exist_ok=True)
+                    dest = images_dir / f"best{ext}"
+                    with open(dest, "wb") as f:
+                        f.write(content)
+                    saved["best"] = dest.relative_to(
+                        data_source.feedback_path
+                    ).as_posix()
+
+        return saved
 
     def _json_scalar(value):
         if isinstance(value, json_scalar_types) or value is None:
@@ -392,6 +483,10 @@ def make_server(
         if not isinstance(payload, dict):
             return JSONResponse({"error": "Invalid feedback payload."}, status_code=400)
         client_ips = _extract_client_ip_chain(request)
+        # Strip bulky base64 image data before persisting payload to JSONL
+        stored_payload = {
+            k: v for k, v in payload.items() if k != "uploadedImageDataUrl"
+        }
         record = {
             "id": str(uuid.uuid4()),
             "dataset": data_source.identifier,
@@ -399,7 +494,7 @@ def make_server(
             "client": client_ips[0] if client_ips else None,
             "clientIps": client_ips,
             "route": payload.get("route"),
-            "payload": payload,
+            "payload": stored_payload,
         }
         search_meta = (
             payload.get("search", {}) if isinstance(payload.get("search"), dict) else {}
@@ -450,6 +545,8 @@ def make_server(
             "maxDistance",
             "queryRowIndex",
             "queryRowId",
+            "queryImagePath",
+            "bestImagePath",
         ]
         try:
             with feedback_lock:
@@ -457,7 +554,21 @@ def make_server(
                     query_images = _persist_query_images(record["id"], query_row)
                     if query_images:
                         record["queryImages"] = query_images
+                answers = (
+                    payload.get("answers")
+                    if isinstance(payload.get("answers"), dict)
+                    else {}
+                )
+                selected = answers.get("selectedMostSimilar")
+                sel_id = selected.get("id") if isinstance(selected, dict) else None
+                feedback_images = _persist_feedback_images(
+                    record["id"], payload, query_row, sel_id,
+                )
+                if feedback_images:
+                    record["feedbackImages"] = feedback_images
                 summary = _clinical_feedback_summary(payload, record)
+                summary["queryImagePath"] = feedback_images.get("query")
+                summary["bestImagePath"] = feedback_images.get("best")
                 data_source.append_feedback("clinical", record)
                 data_source.append_feedback_csv("feedback", summary, summary_fields)
         except Exception:

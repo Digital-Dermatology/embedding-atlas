@@ -79,6 +79,21 @@
     return idx >= 0 ? idx + 1 : null;
   }
 
+  async function blobUrlToDataUrl(url: string): Promise<string | null> {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+    } catch {
+      return null;
+    }
+  }
+
   function extractTopResults(items: SearchResultItem[]) {
     return items.slice(0, 10).map((item, index) => ({
       rank: index + 1,
@@ -116,6 +131,12 @@
     const trimmedComment = wantsComment ? comment.trim() : "";
     const signature = signatureFor(context);
     const rank = selectedSampleRank(selectedSample);
+
+    let uploadedImageDataUrl: string | null = null;
+    if (context.mode === "upload" && context.uploadSummary?.previewUrl) {
+      uploadedImageDataUrl = await blobUrlToDataUrl(context.uploadSummary.previewUrl);
+    }
+
     const payload = {
       route,
       timestamp: new Date().toISOString(),
@@ -142,6 +163,7 @@
         topResults: extractTopResults(searchResult.items),
         uploadSummary: context.uploadSummary ?? undefined,
       },
+      uploadedImageDataUrl,
       userAgent: typeof navigator !== "undefined" ? navigator.userAgent : null,
       location: typeof window !== "undefined" ? window.location.href : null,
     };
