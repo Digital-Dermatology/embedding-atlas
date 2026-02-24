@@ -226,6 +226,18 @@ def make_server(
         max_distance = max(distances) if distances else None
         benefit_score = _safe_int(answers.get("benefitScore"))
         total_results = _safe_int(search.get("totalResults"))
+        selected = answers.get("selectedMostSimilar")
+        if isinstance(selected, dict):
+            selected_sample_id = selected.get("id")
+            selected_sample_rank = _safe_int(selected.get("rank"))
+            selected_sample_distance = _safe_float(selected.get("distance"))
+            selected_sample_condition = selected.get("condition")
+        else:
+            selected_sample_id = None
+            selected_sample_rank = None
+            selected_sample_distance = None
+            selected_sample_condition = None
+        none_are_similar = bool(answers.get("noneAreSimilar", False))
         summary = {
             "id": record.get("id"),
             "receivedAt": record.get("receivedAt"),
@@ -236,7 +248,12 @@ def make_server(
             "mode": search.get("mode"),
             "queryDisplay": search.get("queryDisplay"),
             "benefitScore": benefit_score,
-            "differentialDiagnosisInTop10": answers.get("differentialDiagnosisInTop10"),
+            "differentialDiagnosisInTop10": selected_sample_id is not None,
+            "selectedSampleId": selected_sample_id,
+            "selectedSampleRank": selected_sample_rank,
+            "selectedSampleDistance": selected_sample_distance,
+            "selectedSampleCondition": selected_sample_condition,
+            "noneAreSimilar": none_are_similar,
             "wantsComment": answers.get("wantsComment"),
             "comment": answers.get("comment"),
             "totalResults": total_results,
@@ -420,6 +437,11 @@ def make_server(
             "queryDisplay",
             "benefitScore",
             "differentialDiagnosisInTop10",
+            "selectedSampleId",
+            "selectedSampleRank",
+            "selectedSampleDistance",
+            "selectedSampleCondition",
+            "noneAreSimilar",
             "wantsComment",
             "comment",
             "totalResults",

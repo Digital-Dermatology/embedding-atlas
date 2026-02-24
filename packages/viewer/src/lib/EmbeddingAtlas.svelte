@@ -376,6 +376,7 @@ interface UploadSearchResultDetail {
   }
 
   let clinicalFeedbackContext = $state.raw<ClinicalFeedbackContext | null>(null);
+  let clinicalSelectedSample: SearchResultItem | null = $state(null);
 
   function countSearchResultItems(result: SearchResultState | null): number {
     return result ? result.items.length : 0;
@@ -734,8 +735,10 @@ interface UploadSearchResultDetail {
         queryDisplay: label,
         uploadSummary: null,
       };
+      clinicalSelectedSample = null;
     } else if (resolvedMode !== "neighbors" || augmented.length === 0) {
       clinicalFeedbackContext = null;
+      clinicalSelectedSample = null;
     }
     if (resolvedMode === "neighbors") {
       if (neighborAnchorPoint != null) {
@@ -1105,9 +1108,11 @@ async function handleImageSearchResult(detail: UploadSearchResultDetail) {
         topK: payload?.topK ?? desiredTopK,
       },
     };
+    clinicalSelectedSample = null;
     pendingUploadSurveySignature = signature;
   } else {
     clinicalFeedbackContext = null;
+    clinicalSelectedSample = null;
     pendingUploadSurveySignature = null;
   }
   if (queryPoint != null) {
@@ -1242,6 +1247,7 @@ function clearSearch() {
   uploadSearchNeighborCount = 0;
   uploadSearchHasMore = false;
   clinicalFeedbackContext = null;
+  clinicalSelectedSample = null;
 }
 
   $effect.pre(() => {
@@ -1921,6 +1927,8 @@ function clearSearch() {
                         route={activeRoute}
                         context={clinicalFeedbackContext}
                         searchResult={searchResult}
+                        selectedSample={clinicalSelectedSample}
+                        onClearSelection={() => { clinicalSelectedSample = null; }}
                         on:submitted={handleClinicalSurveySubmitted}
                       />
                     {/key}
@@ -1973,6 +1981,9 @@ function clearSearch() {
                             activeGroupLabel={activeNeighborGroupLabel}
                             onGroupSelect={selectNeighborGroup}
                             onGroupBack={clearNeighborGroupSelection}
+                            selectionMode={shouldShowClinicalFeedback}
+                            selectedItemId={clinicalSelectedSample?.id ?? null}
+                            onSelectItem={(item) => { clinicalSelectedSample = item; }}
                           />
                         </div>
                       {:else if searcherStatus != null}

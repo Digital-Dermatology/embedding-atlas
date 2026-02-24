@@ -36,6 +36,9 @@
     activeGroupLabel?: string | null;
     onGroupSelect?: (key: string) => void;
     onGroupBack?: () => void;
+    selectionMode?: boolean;
+    selectedItemId?: any;
+    onSelectItem?: (item: SearchResultItem) => void;
   }
 
   let {
@@ -56,6 +59,9 @@
     activeGroupLabel = null,
     onGroupSelect,
     onGroupBack,
+    selectionMode = false,
+    selectedItemId = null,
+    onSelectItem,
   }: Props = $props();
 
   function markHighlight(element: HTMLElement, highlight: string) {
@@ -197,23 +203,45 @@
         {/each}
       {/if}
     {:else}
-      {#each visibleItems as item (item.id)}
+      {#each visibleItems as item, index (item.id)}
+        {@const isSelected = selectionMode && selectedItemId != null && item.id === selectedItemId}
         <button
-          class="m-1 p-2 text-left rounded-md hover:outline outline-slate-500"
+          class="m-1 p-2 text-left rounded-md hover:outline outline-slate-500{isSelected ? ' ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-900/30' : ''}"
           onclick={() => {
             onClick?.(item);
           }}
         >
-          {#if item.distance != null && Number.isFinite(item.distance)}
-            <div class="flex pb-1 text-sm">
-              <span class="px-2 flex gap-2 bg-slate-200 text-slate-500 dark:bg-slate-600 dark:text-slate-300 rounded-md">
+          <div class="flex items-center gap-2 pb-1">
+            {#if item.distance != null && Number.isFinite(item.distance)}
+              <span class="px-2 flex gap-2 bg-slate-200 text-slate-500 dark:bg-slate-600 dark:text-slate-300 rounded-md text-sm">
                 <div class="text-slate-400 dark:text-slate-400 font-medium">Distance</div>
                 <div class="text-ellipsis whitespace-nowrap overflow-hidden max-w-72">
                   {item.distance.toFixed(5)}
                 </div>
               </span>
-            </div>
-          {/if}
+            {/if}
+            {#if selectionMode}
+              <span
+                role="button"
+                tabindex="0"
+                class="ml-auto flex-none px-2 py-0.5 rounded text-xs font-medium transition cursor-pointer select-none {isSelected ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 hover:bg-emerald-200 dark:hover:bg-emerald-800 hover:text-emerald-700 dark:hover:text-emerald-200'}"
+                onclick={(e) => {
+                  e.stopPropagation();
+                  onSelectItem?.(item);
+                }}
+                onkeydown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onSelectItem?.(item);
+                  }
+                }}
+                title="Select as most similar"
+              >
+                {isSelected ? "Selected" : `Select #${index + 1}`}
+              </span>
+            {/if}
+          </div>
           <div class="overflow-hidden text-ellipsis line-clamp-4 leading-5" use:markHighlight={highlight}>
             <TooltipContent values={item.fields} columnStyles={columnStyles ?? {}} />
           </div>

@@ -20,12 +20,14 @@
     route: string | null;
     context: ClinicalFeedbackContext | null;
     searchResult: { label: string; highlight: string; items: SearchResultItem[] } | null;
+    selectedSample: SearchResultItem | null;
+    onClearSelection?: () => void;
   }
 
-  let { route, context, searchResult }: Props = $props();
+  let { route, context, searchResult, selectedSample = null, onClearSelection }: Props = $props();
 
   let benefitScore: number = $state(5);
-  let differentialCorrect: "yes" | "no" | "" = $state("");
+  let noneAreSimilar: boolean = $state(false);
   let wantsComment: boolean = $state(false);
   let comment: string = $state("");
   let submitting: boolean = $state(false);
@@ -41,7 +43,7 @@
 
   function resetForm() {
     benefitScore = 5;
-    differentialCorrect = "";
+    noneAreSimilar = false;
     wantsComment = false;
     comment = "";
     submitting = false;
@@ -56,6 +58,26 @@
       resetForm();
     }
   });
+
+  // When a sample is selected, clear "none are similar"
+  $effect(() => {
+    if (selectedSample != null) {
+      noneAreSimilar = false;
+    }
+  });
+
+  function handleNoneAreSimilar() {
+    noneAreSimilar = !noneAreSimilar;
+    if (noneAreSimilar) {
+      onClearSelection?.();
+    }
+  }
+
+  function selectedSampleRank(sample: SearchResultItem | null): number | null {
+    if (sample == null || searchResult == null) return null;
+    const idx = searchResult.items.findIndex((item) => item.id === sample.id);
+    return idx >= 0 ? idx + 1 : null;
+  }
 
   function extractTopResults(items: SearchResultItem[]) {
     return items.slice(0, 10).map((item, index) => ({
@@ -78,8 +100,8 @@
       submitError = "Please rate the benefit between 1 and 10.";
       return;
     }
-    if (differentialCorrect === "") {
-      submitError = "Please tell us if the differential diagnosis was correct.";
+    if (selectedSample == null && !noneAreSimilar) {
+      submitError = "Please select the most similar result, or mark \"None are similar\".";
       return;
     }
     if (wantsComment && comment.trim().length === 0) {
@@ -93,13 +115,20 @@
 
     const trimmedComment = wantsComment ? comment.trim() : "";
     const signature = signatureFor(context);
+    const rank = selectedSampleRank(selectedSample);
     const payload = {
       route,
       timestamp: new Date().toISOString(),
       searchSignature: signature,
       answers: {
         benefitScore,
-        differentialDiagnosisInTop10: differentialCorrect === "yes",
+        selectedMostSimilar: selectedSample != null ? {
+          id: selectedSample.id ?? null,
+          rank: rank,
+          distance: typeof selectedSample.distance === "number" && Number.isFinite(selectedSample.distance) ? selectedSample.distance : null,
+          condition: selectedSample.fields?.condition ?? null,
+        } : null,
+        noneAreSimilar,
         wantsComment,
         comment: trimmedComment,
       },
@@ -147,6 +176,14 @@
     submitSuccess ? "Feedback submitted" : submitting ? "Submitting..." : "Submit feedback",
   );
   const submitButtonDisabled = $derived(submitting || submitSuccess);
+
+  let selectedRank = $derived(selectedSampleRank(selectedSample));
+  let selectedCondition = $derived(selectedSample?.fields?.condition ?? null);
+  let selectedDistance = $derived(
+    typeof selectedSample?.distance === "number" && Number.isFinite(selectedSample.distance)
+      ? selectedSample.distance
+      : null,
+  );
 </script>
 
 <div class="rounded-xl border border-emerald-700/80 bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-800 text-sm text-emerald-50 flex flex-col gap-4 p-4 shadow-xl shadow-emerald-900/40">
@@ -177,30 +214,39 @@
     </div>
     <div class="flex flex-col gap-2">
       <span class="text-xs font-medium uppercase tracking-wide text-emerald-200/80">
-        2. Differential diagnosis in the top 10?
+        2. Select the most similar result
       </span>
-      <div class="flex items-center gap-4 text-emerald-50">
-        <label class="inline-flex items-center gap-2">
-          <input
-            type="radio"
-            name="clinical-feedback-dx"
-            value="yes"
-            bind:group={differentialCorrect}
-            class="h-4 w-4 accent-emerald-400"
-          />
-          <span>Yes</span>
-        </label>
-        <label class="inline-flex items-center gap-2">
-          <input
-            type="radio"
-            name="clinical-feedback-dx"
-            value="no"
-            bind:group={differentialCorrect}
-            class="h-4 w-4 accent-emerald-400"
-          />
-          <span>No</span>
-        </label>
-      </div>
+      {#if selectedSample != null}
+        <div class="rounded-md border border-emerald-500/60 bg-emerald-950/60 px-3 py-2 flex flex-col gap-1">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold text-emerald-300">Rank #{selectedRank ?? "?"}</span>
+            {#if selectedDistance != null}
+              <span class="text-xs text-emerald-200/70">dist: {selectedDistance.toFixed(5)}</span>
+            {/if}
+          </div>
+          {#if selectedCondition}
+            <div class="text-xs text-emerald-100 truncate">{selectedCondition}</div>
+          {/if}
+          <button
+            type="button"
+            class="mt-1 text-xs text-emerald-300/80 hover:text-emerald-200 underline self-start"
+            onclick={() => { onClearSelection?.(); }}
+          >
+            Clear selection
+          </button>
+        </div>
+      {:else if noneAreSimilar}
+        <div class="text-xs text-emerald-200/70 italic">Marked as: none of the results are similar.</div>
+      {:else}
+        <div class="text-xs text-emerald-200/70">Click a "Select" button on a result in the right panel.</div>
+      {/if}
+      <button
+        type="button"
+        class="self-start text-xs px-2 py-1 rounded border transition {noneAreSimilar ? 'border-emerald-400 bg-emerald-400 text-emerald-950 font-semibold' : 'border-emerald-600 text-emerald-200/80 hover:border-emerald-400 hover:text-emerald-100'}"
+        onclick={handleNoneAreSimilar}
+      >
+        {noneAreSimilar ? "None are similar (selected)" : "None are similar"}
+      </button>
     </div>
     <div class="flex flex-col gap-2 text-emerald-50">
       <label class="inline-flex items-center gap-2">
