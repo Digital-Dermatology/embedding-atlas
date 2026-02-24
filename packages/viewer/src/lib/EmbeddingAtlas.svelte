@@ -1827,7 +1827,7 @@ function clearSearch() {
                   {#if searchTab === "image"}
                     <div
                       class={`flex flex-col gap-2 ${
-                        isClinicalRoute ? "" : "max-h-[70vh] overflow-y-auto pr-1"
+                        isClinicalRoute ? "" : "max-h-[85vh] overflow-y-auto pr-1"
                       }`}
                     >
                       <div class="text-sm font-semibold text-slate-600 dark:text-slate-300 select-none">
@@ -1854,7 +1854,7 @@ function clearSearch() {
                     </div>
                   {/if}
                   {#if searchTab === "batch" && showBatchUploadWidget}
-                    <div class="flex flex-col gap-2 max-h-[70vh] overflow-y-auto pr-1">
+                    <div class="flex flex-col gap-2 max-h-[85vh] overflow-y-auto pr-1">
                       <div class="text-sm font-semibold text-slate-600 dark:text-slate-300 select-none">
                         Batch Image NN
                       </div>
@@ -1871,7 +1871,7 @@ function clearSearch() {
                     </div>
                   {/if}
                   {#if searcher && searchTab === "text"}
-                    <div class="flex flex-col gap-2 max-h-[70vh] overflow-y-auto pr-1">
+                    <div class="flex flex-col gap-2 max-h-[85vh] overflow-y-auto pr-1">
                       <div class="text-sm font-semibold text-slate-600 dark:text-slate-300 select-none">
                         Text NN Search
                       </div>

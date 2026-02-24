@@ -56,7 +56,7 @@ let {
   columns = [] as ColumnDesc[],
   uploadBlocked = false,
   uploadBlockedMessage = null,
-  maxHeightClass = "max-h-[50vh]",
+  maxHeightClass = "max-h-[80vh]",
   scrollable = true,
 } = $props();
 
