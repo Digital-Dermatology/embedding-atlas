@@ -310,10 +310,10 @@ interface UploadSearchResultDetail {
   let allowFullTextSearch = $derived(searcher.fullTextSearch != null);
   let allowVectorSearch = $derived(searcher.vectorSearch != null);
   let allowNearestNeighborSearch = $derived(searcher.nearestNeighbors != null);
-  let searchMode = $state<"full-text" | "vector" | "neighbors">("vector");
+  let searchMode = $state<"full-text" | "vector" | "neighbors">("full-text");
   let searchModeOptions = $derived([
-    ...(allowVectorSearch ? [{ label: "Vector NN", value: "vector" }] : []),
     ...(allowFullTextSearch ? [{ label: "Full Text", value: "full-text" }] : []),
+    ...(allowVectorSearch ? [{ label: "Vector NN", value: "vector" }] : []),
     ...(allowNearestNeighborSearch ? [{ label: "Neighbors", value: "neighbors" }] : []),
   ]);
   $effect(() => {
