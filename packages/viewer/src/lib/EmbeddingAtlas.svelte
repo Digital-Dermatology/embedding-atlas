@@ -122,7 +122,9 @@ interface UploadSearchResultDetail {
   let isClinicalRoute = $derived((activeRoute ?? "").toLowerCase() === "clinical");
   let showUploadSearchWidget = $derived(Boolean(uploadSearchConfig?.endpoint ?? defaultUploadConfig.endpoint));
   let showBatchUploadWidget = $derived(Boolean(uploadEmbeddingEndpoint) && !isClinicalRoute);
-  let clinicalSearchTab = $state<"image" | "text">("image");
+  let searchTab = $state<"image" | "batch" | "text">("image");
+  let showImageTab = $derived(Boolean(uploadSearchConfig?.endpoint ?? defaultUploadConfig.endpoint));
+  let showBatchTab = $derived(showBatchUploadWidget);
   let normalizedActiveRoute = $derived((activeRoute ?? "").toLowerCase());
 
   function isRouteActive(route: string | null) {
@@ -303,6 +305,8 @@ interface UploadSearchResultDetail {
     }),
   );
 
+  let showTextTab = $derived(Boolean(searcher));
+  let searchTabCount = $derived((showImageTab ? 1 : 0) + (showBatchTab ? 1 : 0) + (showTextTab ? 1 : 0));
   let allowFullTextSearch = $derived(searcher.fullTextSearch != null);
   let allowVectorSearch = $derived(searcher.vectorSearch != null);
   let allowNearestNeighborSearch = $derived(searcher.nearestNeighbors != null);
@@ -1780,31 +1784,47 @@ function clearSearch() {
             >
               <div class={`flex-1 min-h-0 min-w-0 flex gap-3 p-3 ${nnPanelLayoutClasses}`}>
                 <div class={`flex flex-col gap-4 ${nnPanelSidebarClasses}`}>
-                  {#if isClinicalRoute}
+                  {#if searchTabCount > 1}
                     <div class="flex items-center gap-2 rounded-full border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 p-1 w-full">
-                      <button
-                        class={`px-3 py-1 rounded-full text-xs font-semibold flex-1 text-center ${
-                          clinicalSearchTab === "image"
-                            ? "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-100 shadow"
-                            : "text-slate-500 dark:text-slate-400"
-                        }`}
-                        onclick={() => (clinicalSearchTab = "image")}
-                      >
-                        Image NN
-                      </button>
-                      <button
-                        class={`px-3 py-1 rounded-full text-xs font-semibold flex-1 text-center ${
-                          clinicalSearchTab === "text"
-                            ? "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-100 shadow"
-                            : "text-slate-500 dark:text-slate-400"
-                        }`}
-                        onclick={() => (clinicalSearchTab = "text")}
-                      >
-                        Text NN
-                      </button>
+                      {#if showImageTab}
+                        <button
+                          class={`px-3 py-1 rounded-full text-xs font-semibold flex-1 text-center ${
+                            searchTab === "image"
+                              ? "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-100 shadow"
+                              : "text-slate-500 dark:text-slate-400"
+                          }`}
+                          onclick={() => (searchTab = "image")}
+                        >
+                          Image NN
+                        </button>
+                      {/if}
+                      {#if showBatchTab}
+                        <button
+                          class={`px-3 py-1 rounded-full text-xs font-semibold flex-1 text-center ${
+                            searchTab === "batch"
+                              ? "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-100 shadow"
+                              : "text-slate-500 dark:text-slate-400"
+                          }`}
+                          onclick={() => (searchTab = "batch")}
+                        >
+                          Batch Image NN
+                        </button>
+                      {/if}
+                      {#if showTextTab}
+                        <button
+                          class={`px-3 py-1 rounded-full text-xs font-semibold flex-1 text-center ${
+                            searchTab === "text"
+                              ? "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-100 shadow"
+                              : "text-slate-500 dark:text-slate-400"
+                          }`}
+                          onclick={() => (searchTab = "text")}
+                        >
+                          Text NN
+                        </button>
+                      {/if}
                     </div>
                   {/if}
-                  {#if !isClinicalRoute || clinicalSearchTab === "image"}
+                  {#if searchTab === "image"}
                     <div
                       class={`flex flex-col gap-2 ${
                         isClinicalRoute ? "" : "max-h-[70vh] overflow-y-auto pr-1"
@@ -1831,21 +1851,26 @@ function clearSearch() {
                           </div>
                         {/if}
                       {/if}
-                      {#if showBatchUploadWidget}
-                        <DatasetUploadWidget
-                          disabled={!uploadSearchAvailable}
-                          endpoint={uploadEmbeddingEndpoint}
-                          uploadBlocked={clinicalUploadBlocked}
-                          uploadBlockedMessage={clinicalUploadBlockMessage}
-                          scrollLists={!isClinicalRoute}
-                          on:result={(event) => handleDatasetEmbeddingResult((event as unknown as CustomEvent<any>).detail)}
-                          on:select={(event) => handleDatasetSampleSelect((event as unknown as CustomEvent<any>).detail)}
-                          on:clear={handleDatasetClear}
-                        />
-                      {/if}
                     </div>
                   {/if}
-                  {#if searcher && (!isClinicalRoute || clinicalSearchTab === "text")}
+                  {#if searchTab === "batch" && showBatchUploadWidget}
+                    <div class="flex flex-col gap-2 max-h-[70vh] overflow-y-auto pr-1">
+                      <div class="text-sm font-semibold text-slate-600 dark:text-slate-300 select-none">
+                        Batch Image NN
+                      </div>
+                      <DatasetUploadWidget
+                        disabled={!uploadSearchAvailable}
+                        endpoint={uploadEmbeddingEndpoint}
+                        uploadBlocked={clinicalUploadBlocked}
+                        uploadBlockedMessage={clinicalUploadBlockMessage}
+                        scrollLists={true}
+                        on:result={(event) => handleDatasetEmbeddingResult((event as unknown as CustomEvent<any>).detail)}
+                        on:select={(event) => handleDatasetSampleSelect((event as unknown as CustomEvent<any>).detail)}
+                        on:clear={handleDatasetClear}
+                      />
+                    </div>
+                  {/if}
+                  {#if searcher && searchTab === "text"}
                     <div class="flex flex-col gap-2 max-h-[70vh] overflow-y-auto pr-1">
                       <div class="text-sm font-semibold text-slate-600 dark:text-slate-300 select-none">
                         Text NN Search
