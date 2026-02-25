@@ -3,6 +3,7 @@
   import Router from "svelte-spa-router";
 
   import AdhocViewer from "./AdhocViewer.svelte";
+  import CollectionView from "./CollectionView.svelte";
   import Home from "./Home.svelte";
   import Test from "./Test.svelte";
 
@@ -10,6 +11,7 @@
     "/": (window as any)?.EMBEDDING_ATLAS_HOME == "upload" ? AdhocViewer : Home,
     "/test": Test,
     "/upload": AdhocViewer,
+    "/collection": CollectionView,
   };
 </script>
 
