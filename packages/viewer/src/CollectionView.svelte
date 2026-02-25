@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
   import Spinner from "./lib/Spinner.svelte";
+  import { systemDarkMode } from "./lib/dark_mode_store.js";
+  import skinmapLogo from "./assets/atlas.png";
 
   type Stage = "upload" | "analyzing" | "results" | "submitted";
 
@@ -248,14 +250,22 @@
   }
 </script>
 
-<div class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 p-6">
-  <div class="max-w-4xl mx-auto flex flex-col gap-6">
-    <!-- Header -->
-    <div class="flex flex-col gap-1">
-      <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">Data Collection</h1>
-      <p class="text-sm text-slate-500 dark:text-slate-400">
-        Upload dermatology images to identify dataset gaps. High-priority images fill underrepresented combinations of skin type, age, and body region.
-      </p>
+<div class="fixed left-0 right-0 top-0 bottom-0 overflow-y-auto select-none text-slate-800 bg-slate-200 dark:text-slate-200 dark:bg-slate-800" class:dark={$systemDarkMode}>
+  <div class="max-w-4xl mx-auto flex flex-col gap-6 p-6">
+    <!-- Header with branding -->
+    <div class="flex items-center gap-4">
+      <a href="/" class="shrink-0">
+        <img src={skinmapLogo} alt="SkinMap logo" class="w-10 h-10 rounded-lg" />
+      </a>
+      <div class="flex-1 flex flex-col gap-0.5">
+        <div class="flex items-center gap-3">
+          <h1 class="text-xl font-semibold tracking-wide text-slate-800 dark:text-slate-100">Data Collection</h1>
+          <a href="/" class="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">&larr; Back to Atlas</a>
+        </div>
+        <p class="text-xs text-slate-500 dark:text-slate-400">
+          Upload dermatology images to identify dataset gaps. High-priority images fill underrepresented combinations of skin type, age, and body region.
+        </p>
+      </div>
     </div>
 
     {#if errorMessage}
