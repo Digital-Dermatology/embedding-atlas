@@ -883,7 +883,7 @@ def make_server(
             return Response(status_code=404)
         try:
             content, mime = asset.load()
-        except FileNotFoundError:
+        except (FileNotFoundError, IsADirectoryError):
             return Response(status_code=404)
         return Response(content=content, media_type=mime)
 

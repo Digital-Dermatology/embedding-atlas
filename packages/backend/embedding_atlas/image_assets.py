@@ -30,6 +30,8 @@ class ImageAsset:
             mime = self.mime or detect_image_type(self.content)
             return self.content, mime
         if self.path is not None:
+            if not self.path.is_file():
+                raise FileNotFoundError(f"Image asset path is not a file: {self.path}")
             data = self.path.read_bytes()
             mime = self.mime or detect_image_type(data)
             object.__setattr__(self, "content", data)
@@ -78,7 +80,9 @@ def _resolve_path(path_value: str, base_dir: Path | None = None) -> Path | None:
 
     for candidate in candidates:
         try:
-            return candidate.resolve(strict=True)
+            resolved = candidate.resolve(strict=True)
+            if resolved.is_file():
+                return resolved
         except OSError:
             continue
     return None
