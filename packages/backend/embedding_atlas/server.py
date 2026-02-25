@@ -487,10 +487,15 @@ def make_server(
         stored_payload = {
             k: v for k, v in payload.items() if k != "uploadedImageDataUrl"
         }
+        received_at = datetime.now(timezone.utc)
+        record_uuid = str(uuid.uuid4())
+        ts_prefix = received_at.strftime("%Y%m%d_%H%M%S")
+        record_dir_name = f"{ts_prefix}_{record_uuid[:8]}"
         record = {
-            "id": str(uuid.uuid4()),
+            "id": record_uuid,
+            "dirName": record_dir_name,
             "dataset": data_source.identifier,
-            "receivedAt": datetime.now(timezone.utc).isoformat(),
+            "receivedAt": received_at.isoformat(),
             "client": client_ips[0] if client_ips else None,
             "clientIps": client_ips,
             "route": payload.get("route"),
@@ -551,7 +556,7 @@ def make_server(
         try:
             with feedback_lock:
                 if query_row is not None:
-                    query_images = _persist_query_images(record["id"], query_row)
+                    query_images = _persist_query_images(record_dir_name, query_row)
                     if query_images:
                         record["queryImages"] = query_images
                 answers = (
@@ -562,7 +567,7 @@ def make_server(
                 selected = answers.get("selectedMostSimilar")
                 sel_id = selected.get("id") if isinstance(selected, dict) else None
                 feedback_images = _persist_feedback_images(
-                    record["id"], payload, query_row, sel_id,
+                    record_dir_name, payload, query_row, sel_id,
                 )
                 if feedback_images:
                     record["feedbackImages"] = feedback_images

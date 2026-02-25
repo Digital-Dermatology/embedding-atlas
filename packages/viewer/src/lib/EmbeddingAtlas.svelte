@@ -1486,8 +1486,8 @@ function clearSearch() {
     class:dark={$darkMode}
     style:color-scheme={$darkMode ? "dark" : "light"}
   >
-    <div class="m-2 flex flex-row items-center gap-4">
-      <div class="flex items-center gap-4">
+    <div class="m-2 flex flex-row flex-wrap items-center gap-x-3 gap-y-1">
+      <div class="flex items-center gap-4 shrink-0">
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
@@ -1517,10 +1517,11 @@ function clearSearch() {
           <div class="h-6 w-px bg-slate-300 dark:bg-slate-700"></div>
         {/if}
       </div>
-      <div class="flex items-center gap-3 flex-1 min-w-0">
-        {#if showEmbedding}
+      {#if showEmbedding && !isCompactLayout}
+        <div class="flex items-center gap-3 shrink-0 min-w-0">
           <Select
             label="Color"
+            class="max-w-[180px]"
             value={selectedCategoryColumn}
             onChange={(v) => (selectedCategoryColumn = v)}
             options={[
@@ -1536,6 +1537,7 @@ function clearSearch() {
           />
           <Select
             label="Labels"
+            class="max-w-[180px]"
             value={selectedLabelColumn}
             onChange={(v) => (selectedLabelColumn = v)}
             options={[
@@ -1559,9 +1561,9 @@ function clearSearch() {
               { value: "density", label: "Density" },
             ]}
           />
-        {/if}
-      </div>
-      <div class="ml-auto flex items-center gap-3">
+        </div>
+      {/if}
+      <div class="ml-auto flex items-center gap-3 shrink-0">
         {#if showEmbedding && embeddingViewMode == "density"}
           <div class="select-none flex items-center gap-2">
             <span class="text-slate-500 dark:text-slate-400">Threshold</span>

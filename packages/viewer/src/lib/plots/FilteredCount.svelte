@@ -43,6 +43,6 @@
   });
 </script>
 
-<div>
+<div class="whitespace-nowrap text-sm">
   {count?.toLocaleString() ?? ""} <span class="text-slate-500">/ {totalCount?.toLocaleString() ?? ""} points</span>
 </div>
