@@ -2,6 +2,7 @@
   import { onDestroy } from "svelte";
   import Spinner from "./lib/Spinner.svelte";
   import { systemDarkMode } from "./lib/dark_mode_store.js";
+  import { imageToDataUrl, setImageAssets } from "./lib/image_utils.js";
   import skinmapLogo from "./assets/atlas.png";
 
   type Stage = "upload" | "analyzing" | "results" | "submitted";
@@ -55,7 +56,10 @@
 
   onDestroy(() => {
     resetPreviews();
+    setImageAssets(null);
   });
+
+  setImageAssets({ tokenPrefix: "ea://image/", relativePath: "images" });
 
   function addFiles(newFiles: File[]) {
     const imageFiles = newFiles
@@ -498,7 +502,7 @@
                         <div class="flex flex-col items-center gap-0.5 w-16">
                           {#if nb.image}
                             <img
-                              src={nb.image}
+                              src={imageToDataUrl(nb.image) ?? nb.image}
                               alt="neighbor {i + 1}"
                               class="w-14 h-14 object-cover rounded border border-slate-200 dark:border-slate-700"
                             />

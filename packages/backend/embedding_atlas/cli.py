@@ -124,6 +124,11 @@ def _load_umap_model(model_path: Path):
             logger.info(
                 "Patched NNDescent with missing 'quantization' attribute"
             )
+        if not hasattr(NNDescent, "_min_distance"):
+            NNDescent._min_distance = None  # type: ignore[attr-defined]
+            logger.info(
+                "Patched NNDescent with missing '_min_distance' attribute"
+            )
         return joblib.load(model_path)
     except Exception as exc:
         logger.warning(
