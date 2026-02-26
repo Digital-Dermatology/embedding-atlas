@@ -18,6 +18,7 @@ dependencies = [
   "fastparquet >= 2024.0.0",
   "platformdirs >= 4.3.0",
   "umap-learn >= 0.5.0",
+  "pynndescent >= 0.5.13, < 0.6",
   "sentence-transformers >= 3.3.0",
   "fastapi >= 0.115.0",
   "python-multipart >= 0.0.9",

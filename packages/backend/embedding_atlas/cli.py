@@ -109,36 +109,6 @@ class ProjectionInfo:
     reducer: Any
 
 
-def _load_umap_model(model_path: Path):
-    try:
-        return joblib.load(model_path)
-    except Exception as exc:
-        logger.warning("Failed to load UMAP model %s: %s", model_path, exc)
-
-    try:
-        import pynndescent
-
-        NNDescent = pynndescent.NNDescent
-        if not hasattr(NNDescent, "quantization"):
-            NNDescent.quantization = None  # type: ignore[attr-defined]
-            logger.info(
-                "Patched NNDescent with missing 'quantization' attribute"
-            )
-        if not hasattr(NNDescent, "_min_distance"):
-            NNDescent._min_distance = None  # type: ignore[attr-defined]
-            logger.info(
-                "Patched NNDescent with missing '_min_distance' attribute"
-            )
-        return joblib.load(model_path)
-    except Exception as exc:
-        logger.warning(
-            "Failed to load UMAP model %s even after NNDescent patch: %s",
-            model_path,
-            exc,
-        )
-        return None
-
-
 def apply_saved_umap_projection(
     df: pd.DataFrame, vector_column: str, upload_config_path: str
 ) -> ProjectionInfo | None:
@@ -166,11 +136,9 @@ def apply_saved_umap_projection(
         logger.warning("UMAP model %s referenced in config is missing.", model_path)
         return None
     try:
-        reducer = _load_umap_model(model_path)
+        reducer = joblib.load(model_path)
     except Exception as exc:
         logger.warning("Failed to load UMAP model %s: %s", model_path, exc)
-        return None
-    if reducer is None:
         return None
     try:
         vectors = _values_to_numpy(df[vector_column])
