@@ -458,7 +458,7 @@
                       <span><span class="font-medium text-slate-600 dark:text-slate-300">Modality:</span> {sample.predictions.modality}</span>
                     {/if}
                     {#if sample.predictions.icd_description}
-                      <span><span class="font-medium text-slate-600 dark:text-slate-300">Condition:</span> {sample.predictions.icd_description}</span>
+                      <span><span class="font-medium text-slate-600 dark:text-slate-300">Possible condition:</span> {sample.predictions.icd_description}</span>
                     {:else if sample.predictions.icd_code}
                       <span><span class="font-medium text-slate-600 dark:text-slate-300">ICD:</span> {sample.predictions.icd_code}</span>
                     {/if}
