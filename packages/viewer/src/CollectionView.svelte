@@ -46,6 +46,33 @@
   let errorMessage: string | null = $state(null);
   let contributionId: string | null = $state(null);
 
+  // Per-field dropdown options returned by the backend (probe classes).
+  let fieldOptions: Record<string, string[]> = $state({});
+
+  // User edits per sample: sampleId → { field: value }
+  let userEdits: Map<string, Record<string, any>> = $state(new Map());
+
+  function getEdit(sampleId: string, field: string, fallback: any): any {
+    const edits = userEdits.get(sampleId);
+    if (edits && field in edits) return edits[field];
+    return fallback;
+  }
+
+  function setEdit(sampleId: string, field: string, value: any) {
+    const prev = userEdits.get(sampleId) ?? {};
+    userEdits = new Map(userEdits).set(sampleId, { ...prev, [field]: value });
+  }
+
+  /** Metadata field definitions for the editable form. */
+  const METADATA_FIELDS: { key: string; label: string; type: "select" | "number" | "text" }[] = [
+    { key: "modality", label: "Modality", type: "select" },
+    { key: "body_region", label: "Region", type: "select" },
+    { key: "fitzpatrick", label: "FST", type: "select" },
+    { key: "gender", label: "Gender", type: "select" },
+    { key: "age", label: "Age", type: "number" },
+    { key: "icd_description", label: "Condition", type: "text" },
+  ];
+
   // Drag state
   let dragOver: boolean = $state(false);
 
@@ -128,6 +155,12 @@
       }
       const payload = await resp.json();
       samples = Array.isArray(payload?.samples) ? payload.samples : [];
+      fieldOptions = payload?.fieldOptions ?? {};
+      // Add modality options if not returned by probes (modality is predicted separately).
+      if (!fieldOptions["modality"]) {
+        fieldOptions["modality"] = ["clinical", "dermoscopy", "TBP"];
+      }
+      userEdits = new Map();
 
       // Auto-select high-priority samples
       const newSelected = new Set<string>();
@@ -204,9 +237,14 @@
         if (file) {
           imageData = await fileToDataUrl(file);
         }
+        const edits = userEdits.get(s.id) ?? {};
+        // Merge user edits over model predictions so persisted metadata
+        // reflects any corrections the contributor made.
+        const mergedPredictions = { ...(s.predictions ?? {}), ...edits };
         payload.push({
           filename: s.filename,
-          predictions: s.predictions,
+          predictions: mergedPredictions,
+          userEdits: Object.keys(edits).length > 0 ? edits : undefined,
           priority: s.priority,
           imageData,
         });
@@ -235,6 +273,8 @@
     files = [];
     samples = [];
     selected = new Set();
+    userEdits = new Map();
+    fieldOptions = {};
     errorMessage = null;
     statusText = "";
     contributionId = null;
@@ -446,34 +486,51 @@
                   <span class="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{sample.filename}</span>
                   {#if sample.priority}
                     <span class="shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full {priorityColor(sample.priority.score)}">
-                      {priorityLabel(sample.priority.score)} ({(sample.priority.score * 100).toFixed(0)}%)
+                      {priorityLabel(sample.priority.score)}
                     </span>
                   {/if}
                 </div>
 
-                <!-- Predicted metadata -->
+                <!-- Editable predicted metadata -->
                 {#if sample.predictions}
-                  <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-                    {#if sample.predictions.modality}
-                      <span><span class="font-medium text-slate-600 dark:text-slate-300">Modality:</span> {sample.predictions.modality}</span>
-                    {/if}
-                    {#if sample.predictions.icd_description}
-                      <span><span class="font-medium text-slate-600 dark:text-slate-300">Possible condition:</span> {sample.predictions.icd_description}</span>
-                    {:else if sample.predictions.icd_code}
-                      <span><span class="font-medium text-slate-600 dark:text-slate-300">ICD:</span> {sample.predictions.icd_code}</span>
-                    {/if}
-                    {#if sample.predictions.body_region}
-                      <span><span class="font-medium text-slate-600 dark:text-slate-300">Region:</span> {sample.predictions.body_region}</span>
-                    {/if}
-                    {#if sample.predictions.fitzpatrick}
-                      <span><span class="font-medium text-slate-600 dark:text-slate-300">FST:</span> {sample.predictions.fitzpatrick}</span>
-                    {/if}
-                    {#if sample.predictions.age != null}
-                      <span><span class="font-medium text-slate-600 dark:text-slate-300">Age:</span> {typeof sample.predictions.age === "number" ? Math.round(sample.predictions.age) : sample.predictions.age}</span>
-                    {/if}
-                    {#if sample.predictions.gender}
-                      <span><span class="font-medium text-slate-600 dark:text-slate-300">Gender:</span> {sample.predictions.gender}</span>
-                    {/if}
+                  <div class="flex flex-wrap gap-x-3 gap-y-1.5 text-xs text-slate-500 dark:text-slate-400 items-end">
+                    {#each METADATA_FIELDS as field (field.key)}
+                      {@const predicted = sample.predictions[field.key]}
+                      {#if predicted != null || field.key === "icd_description"}
+                        {@const current = getEdit(sample.id, field.key, predicted)}
+                        <label class="flex flex-col gap-0.5">
+                          <span class="font-medium text-slate-600 dark:text-slate-300">{field.label}</span>
+                          {#if field.type === "select" && fieldOptions[field.key]}
+                            <select
+                              class="rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs px-1.5 py-1 min-w-[5rem] {userEdits.get(sample.id)?.[field.key] != null ? 'ring-1 ring-blue-300 dark:ring-blue-600' : ''}"
+                              value={String(current ?? "")}
+                              onchange={(e) => setEdit(sample.id, field.key, (e.currentTarget as HTMLSelectElement).value)}
+                            >
+                              {#each fieldOptions[field.key] as opt}
+                                <option value={opt} selected={String(current) === opt}>{opt}</option>
+                              {/each}
+                            </select>
+                          {:else if field.type === "number"}
+                            <input
+                              type="number"
+                              class="rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs px-1.5 py-1 w-16 {userEdits.get(sample.id)?.[field.key] != null ? 'ring-1 ring-blue-300 dark:ring-blue-600' : ''}"
+                              value={current != null ? (typeof current === "number" ? Math.round(current) : current) : ""}
+                              onchange={(e) => {
+                                const v = (e.currentTarget as HTMLInputElement).value;
+                                setEdit(sample.id, field.key, v ? Number(v) : null);
+                              }}
+                            />
+                          {:else}
+                            <input
+                              type="text"
+                              class="rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs px-1.5 py-1 min-w-[8rem] {userEdits.get(sample.id)?.[field.key] != null ? 'ring-1 ring-blue-300 dark:ring-blue-600' : ''}"
+                              value={current ?? ""}
+                              onchange={(e) => setEdit(sample.id, field.key, (e.currentTarget as HTMLInputElement).value || null)}
+                            />
+                          {/if}
+                        </label>
+                      {/if}
+                    {/each}
                   </div>
                 {/if}
 
