@@ -24,6 +24,12 @@
     body_region?: string;
   }
 
+  interface QualityDetail {
+    content: number;
+    modality: number;
+    explanation: string;
+  }
+
   interface SampleResult {
     id: string;
     filename: string;
@@ -32,6 +38,9 @@
     priority?: PriorityInfo;
     projection?: { x: number; y: number } | null;
     error?: string;
+    is_flagged?: boolean;
+    quality_score?: number | null;
+    quality_detail?: QualityDetail | null;
   }
 
   const MAX_FILES = 64;
@@ -162,9 +171,10 @@
       }
       userEdits = new Map();
 
-      // Auto-select high-priority samples
+      // Auto-select high-priority samples (skip flagged)
       const newSelected = new Set<string>();
       for (const s of samples) {
+        if (s.is_flagged) continue;
         if (s.priority && s.priority.score > 0.5) {
           newSelected.add(s.id);
         }
@@ -461,9 +471,11 @@
           {:else}
             <div
               class="rounded-md border bg-white dark:bg-slate-900 p-4 flex gap-4 transition-colors
-                {selected.has(sample.id)
-                  ? 'border-blue-400 dark:border-blue-500 ring-1 ring-blue-200 dark:ring-blue-800'
-                  : 'border-slate-300 dark:border-slate-600'}"
+                {sample.is_flagged
+                  ? 'border-amber-400 dark:border-amber-500 opacity-70'
+                  : selected.has(sample.id)
+                    ? 'border-blue-400 dark:border-blue-500 ring-1 ring-blue-200 dark:ring-blue-800'
+                    : 'border-slate-300 dark:border-slate-600'}"
             >
               <!-- Checkbox + thumbnail -->
               <div class="flex flex-col items-center gap-2 shrink-0">
@@ -490,6 +502,23 @@
                     </span>
                   {/if}
                 </div>
+
+                {#if sample.is_flagged}
+                  <div class="flex items-center gap-2 rounded-md border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-950/30 px-3 py-1.5 text-xs text-amber-700 dark:text-amber-300">
+                    <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                    </svg>
+                    <span>
+                      This image may not be a dermatological photograph
+                      {#if sample.quality_detail?.explanation && sample.quality_detail.explanation !== "OK"}
+                        ({sample.quality_detail.explanation})
+                      {/if}
+                    </span>
+                    {#if sample.quality_score != null}
+                      <span class="ml-auto font-semibold tabular-nums">{Math.round(sample.quality_score * 100)}%</span>
+                    {/if}
+                  </div>
+                {/if}
 
                 <!-- Editable predicted metadata -->
                 {#if sample.predictions}
@@ -545,10 +574,6 @@
                   </div>
                 {/if}
 
-                <!-- Explanation -->
-                {#if sample.priority}
-                  <p class="text-xs text-slate-400 dark:text-slate-500">{sample.priority.explanation}</p>
-                {/if}
 
                 <!-- Neighbors -->
                 {#if sample.neighbors && sample.neighbors.length > 0}
