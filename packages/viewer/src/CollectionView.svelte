@@ -264,7 +264,7 @@
       <div class="flex-1 flex flex-col gap-0.5">
         <div class="flex items-center gap-3">
           <h1 class="text-xl font-semibold tracking-wide text-slate-800 dark:text-slate-100">Data Collection</h1>
-          <a href="/" class="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">&larr; Back to Atlas</a>
+          <a href="/" class="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">&larr; Back to Map</a>
         </div>
         <p class="text-xs text-slate-500 dark:text-slate-400">
           Upload dermatology images to identify dataset gaps. High-priority images fill underrepresented combinations of skin type, age, and body region.

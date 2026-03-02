@@ -34,6 +34,9 @@
 
   function routeLabel(route: string | null) {
     if (!route || route.toLowerCase() === "atlas") {
+      return "Map";
+    }
+    if (route.toLowerCase() === "clinical") {
       return "Atlas";
     }
     return route
@@ -71,6 +74,8 @@
         href: routeHref(normalizedRoute),
       });
     });
+    // Always add Collection tab (standalone SPA route, not a state variant).
+    tabs.push({ label: "Collection", route: "collection", href: "/#/collection" });
     return tabs;
   }
 

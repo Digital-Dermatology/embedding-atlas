@@ -1632,7 +1632,15 @@ function clearSearch() {
                 {/if}
               </div>
               <h4 class="text-slate-500 dark:text-slate-400 my-2 select-none">About</h4>
-              <div>SkinMap, {EMBEDDING_ATLAS_VERSION}</div>
+              <div class="flex flex-col gap-1">
+                <span>SkinMap, {EMBEDDING_ATLAS_VERSION}</span>
+                <a
+                  href="https://www.medrxiv.org/content/10.64898/2025.12.27.25342585v1"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                >Read the SkinMap paper</a>
+              </div>
             </div>
           </PopupButton>
         {#if colorScheme == null}
@@ -2035,6 +2043,14 @@ function clearSearch() {
           {/if}
         </div>
       {/if}
+    </div>
+    <div class="shrink-0 flex items-center justify-center px-4 py-1 text-[10px] text-slate-400 dark:text-slate-500">
+      <a
+        href="https://www.medrxiv.org/content/10.64898/2025.12.27.25342585v1"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="hover:text-slate-600 dark:hover:text-slate-300 hover:underline transition-colors"
+      >Thiem et al., SkinMap: A Comprehensive Dermatology Atlas Built Through Embedding-Based Retrieval, 2025</a>
     </div>
   </div>
 </div>
