@@ -1532,7 +1532,7 @@ function clearSearch() {
                     c.distinctCount > 1 &&
                     (((c.jsType == "string" || c.jsType == "string[]") && c.distinctCount <= 10000) || c.jsType == "number"),
                 )
-                .map((c) => ({ value: c.name, label: `${c.name} (${c.type})` })),
+                .map((c) => ({ value: c.name, label: c.name })),
             ]}
           />
           <Select
@@ -1548,7 +1548,7 @@ function clearSearch() {
                     ? `${data.text} (default)`
                     : "(none)",
               },
-              ...columns.filter((c) => c.name !== data.text).map((c) => ({ value: c.name, label: `${c.name} (${c.type})` })),
+              ...columns.filter((c) => c.name !== data.text).map((c) => ({ value: c.name, label: c.name })),
             ]}
           />
           <Select

@@ -104,7 +104,7 @@
         onChange={(v) => (textColumn = v)}
         options={[
           { value: null, label: "(none)" },
-          ...stringColumns.map((x) => ({ value: x.column_name, label: `${x.column_name} (${x.column_type})` })),
+          ...stringColumns.map((x) => ({ value: x.column_name, label: x.column_name })),
         ]}
       />
     </div>
@@ -137,7 +137,7 @@
           onChange={(v) => (embeddingXColumn = v)}
           options={[
             { value: null, label: "(none)" },
-            ...numericalColumns.map((x) => ({ value: x.column_name, label: `${x.column_name} (${x.column_type})` })),
+            ...numericalColumns.map((x) => ({ value: x.column_name, label: x.column_name })),
           ]}
         />
       </div>
@@ -149,7 +149,7 @@
           onChange={(v) => (embeddingYColumn = v)}
           options={[
             { value: null, label: "(none)" },
-            ...numericalColumns.map((x) => ({ value: x.column_name, label: `${x.column_name} (${x.column_type})` })),
+            ...numericalColumns.map((x) => ({ value: x.column_name, label: x.column_name })),
           ]}
         />
       </div>
@@ -162,7 +162,7 @@
           onChange={(v) => (embeddingTextColumn = v)}
           options={[
             { value: null, label: "(none)" },
-            ...stringColumns.map((x) => ({ value: x.column_name, label: `${x.column_name} (${x.column_type})` })),
+            ...stringColumns.map((x) => ({ value: x.column_name, label: x.column_name })),
           ]}
         />
       </div>
@@ -188,7 +188,7 @@
           onChange={(v) => (embeddingImageColumn = v)}
           options={[
             { value: null, label: "(none)" },
-            ...columns.map((x) => ({ value: x.column_name, label: `${x.column_name} (${x.column_type})` })),
+            ...columns.map((x) => ({ value: x.column_name, label: x.column_name })),
           ]}
         />
       </div>
