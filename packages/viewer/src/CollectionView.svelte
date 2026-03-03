@@ -212,6 +212,11 @@
 
   let sortedSamples = $derived(
     [...samples].sort((a, b) => {
+      // Flagged samples always sink to the bottom
+      const fa = a.is_flagged ? 1 : 0;
+      const fb = b.is_flagged ? 1 : 0;
+      if (fa !== fb) return fa - fb;
+
       if (sortBy === "priority") {
         const pa = a.priority?.score ?? 0;
         const pb = b.priority?.score ?? 0;
