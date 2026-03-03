@@ -458,6 +458,18 @@ interface UploadSearchResultDetail {
   let groupNeighborsByCondition: boolean = $state(false);
   let activeNeighborGroup: string | null = $state(null);
 
+  const NEIGHBOR_GROUP_TOP_K = 5;
+
+  function medianOfTopK(distances: number[], k: number): number {
+    const finite = distances.filter(Number.isFinite).sort((a, b) => a - b);
+    if (finite.length === 0) {
+      return Number.POSITIVE_INFINITY;
+    }
+    const slice = finite.slice(0, k);
+    const mid = Math.floor(slice.length / 2);
+    return slice.length % 2 === 1 ? slice[mid] : (slice[mid - 1] + slice[mid]) / 2;
+  }
+
   function buildNeighborGroupSummaries(): NeighborGroupSummary[] {
     if (searchResult?.items == null || searchResult.items.length === 0) {
       return [];
@@ -481,9 +493,13 @@ interface UploadSearchResultDetail {
         existing.count += 1;
         if (distance < existing.distance) {
           existing.representative = item;
-          existing.distance = distance;
         }
       }
+    }
+    // Rank groups by median distance of their top-K closest items.
+    for (const group of groups.values()) {
+      const distances = group.items.map((item) => normalizedDistance(item.distance));
+      group.distance = medianOfTopK(distances, NEIGHBOR_GROUP_TOP_K);
     }
     return Array.from(groups.values()).sort((a, b) => {
       const diff = a.distance - b.distance;

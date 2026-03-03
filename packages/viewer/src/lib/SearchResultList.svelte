@@ -195,7 +195,7 @@
             </div>
             {#if Number.isFinite(group.distance)}
               <div class="mt-1 text-xs text-slate-400 dark:text-slate-500">
-                Nearest distance: {group.distance.toFixed(5)}
+                Median distance (top {Math.min(group.count, 5)}): {group.distance.toFixed(5)}
               </div>
             {/if}
           </button>
