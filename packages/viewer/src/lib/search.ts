@@ -262,7 +262,7 @@ export function resolveSearcher(options: {
     result.nearestNeighbors = async (
       id: any,
       options: { limit?: number; predicate?: string | null; onStatus?: (status: string) => void } = {},
-    ): Promise<{ id: any; distance?: number }[]> => {
+    ): Promise<{ id: any; distance?: number; confidence?: number }[]> => {
       let limit = Math.max(1, Math.min(options.limit ?? DEFAULT_NEIGHBOR_LIMIT, DEFAULT_NEIGHBOR_LIMIT));
       options.onStatus?.("Searching neighbors...");
       const base = typeof window !== "undefined" ? window.location.href : "http://localhost";
