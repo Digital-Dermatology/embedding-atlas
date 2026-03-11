@@ -1065,7 +1065,7 @@ function updateUploadSearchStatus(
 
 async function displayNeighborResults(
   label: string,
-  neighbors: { id: any; distance?: number }[],
+  neighbors: { id: any; distance?: number; confidence?: number }[],
 ): Promise<SearchResultItem[]> {
   searchResultVisible = true;
   searchResultHighlight = null;

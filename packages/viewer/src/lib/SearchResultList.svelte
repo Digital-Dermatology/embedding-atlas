@@ -13,7 +13,6 @@
   const GROUP_THUMBNAIL_COUNT = 5;
   const GROUP_IMAGE_FIELD = "image";
   const CONFIDENCE_THRESHOLD = 0.95;
-  const BADGE_FIELDS = ["body_region", "fitzpatrick", "age", "gender"] as const;
 
   interface NeighborGroupEntry {
     key: string;
@@ -211,7 +210,7 @@
                     <img
                       {src}
                       alt=""
-                      class="w-12 h-12 object-cover rounded border border-slate-200 dark:border-slate-700 flex-none"
+                      class="w-16 h-16 object-cover rounded border border-slate-200 dark:border-slate-700 flex-none"
                     />
                   {/if}
                 {/each}
@@ -232,6 +231,7 @@
         {@const conf = item.confidence}
         {@const isLowConfidence = conf != null && conf < CONFIDENCE_THRESHOLD}
         {@const imgSrc = imageToDataUrl(item.fields?.[GROUP_IMAGE_FIELD])}
+        {@const tooltipFields = Object.fromEntries(Object.entries(item.fields ?? {}).filter(([k]) => k !== GROUP_IMAGE_FIELD))}
         <button
           class="m-1 p-2 text-left rounded-md hover:outline outline-slate-500{isSelected ? ' ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-900/30' : ''}{isLowConfidence ? ' opacity-40' : ''}"
           onclick={() => {
@@ -285,20 +285,9 @@
                   </span>
                 {/if}
               </div>
-              <!-- Metadata badges -->
-              <div class="flex flex-wrap gap-1 pb-1">
-                {#each BADGE_FIELDS as field}
-                  {@const val = item.fields?.[field]}
-                  {#if val != null && String(val).trim() !== ""}
-                    <span class="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400 truncate max-w-[8rem]" title="{field}: {val}">
-                      {val}
-                    </span>
-                  {/if}
-                {/each}
-              </div>
-              <!-- Full tooltip content -->
+              <!-- Tooltip content (image excluded to avoid duplicate) -->
               <div class="overflow-hidden text-ellipsis line-clamp-3 leading-5 text-sm" use:markHighlight={highlight}>
-                <TooltipContent values={item.fields} columnStyles={columnStyles ?? {}} />
+                <TooltipContent values={tooltipFields} columnStyles={columnStyles ?? {}} />
               </div>
             </div>
           </div>
