@@ -79,7 +79,7 @@
     { key: "fitzpatrick", label: "FST", type: "select" },
     { key: "gender", label: "Gender", type: "select" },
     { key: "age", label: "Age", type: "number" },
-    { key: "icd_description", label: "Condition", type: "text" },
+    { key: "icd_description", label: "Condition", type: "select" },
   ];
 
   // Drag state
@@ -534,7 +534,22 @@
                         {@const current = getEdit(sample.id, field.key, predicted)}
                         <label class="flex flex-col gap-0.5">
                           <span class="font-medium text-slate-600 dark:text-slate-300">{field.label}</span>
-                          {#if field.type === "select" && fieldOptions[field.key]}
+                          {#if field.type === "select" && fieldOptions[field.key] && fieldOptions[field.key].length > 30}
+                            {@const listId = `dl_${sample.id}_${field.key}`}
+                            <input
+                              type="text"
+                              list={listId}
+                              class="rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs px-1.5 py-1 min-w-[10rem] {userEdits.get(sample.id)?.[field.key] != null ? 'ring-1 ring-blue-300 dark:ring-blue-600' : ''}"
+                              value={current ?? ""}
+                              placeholder="Type to search..."
+                              onchange={(e) => setEdit(sample.id, field.key, (e.currentTarget as HTMLInputElement).value || null)}
+                            />
+                            <datalist id={listId}>
+                              {#each fieldOptions[field.key] as opt}
+                                <option value={opt}></option>
+                              {/each}
+                            </datalist>
+                          {:else if field.type === "select" && fieldOptions[field.key]}
                             <select
                               class="rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs px-1.5 py-1 min-w-[5rem] {userEdits.get(sample.id)?.[field.key] != null ? 'ring-1 ring-blue-300 dark:ring-blue-600' : ''}"
                               value={String(current ?? "")}
