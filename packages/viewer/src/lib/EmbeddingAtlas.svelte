@@ -57,7 +57,7 @@ import type { UploadedSamplePoint } from "./types/uploaded_samples.js";
   import skinmapLogo from "../assets/atlas.png";
 
 const searchLimit = 500;
-const searchPageSize = 50;
+const searchPageSize = 100;
 
 type UploadSearchFilter =
   | { column: string; type: "string" | "string[]"; values: string[] }
@@ -528,6 +528,28 @@ interface UploadSearchResultDetail {
 
   let activeNeighborGroupLabel = $derived(resolveActiveNeighborGroupLabel());
 
+  const ICD_CHAPTER_FIELD = "icd_chapter";
+
+  function dominantFieldValue(items: SearchResultItem[], field: string): string {
+    const counts = new Map<string, number>();
+    for (const item of items) {
+      const val = item.fields?.[field];
+      if (val != null && String(val).trim() !== "") {
+        const key = String(val).trim();
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+      }
+    }
+    let best = "unknown";
+    let bestCount = 0;
+    for (const [key, count] of counts) {
+      if (count > bestCount) {
+        best = key;
+        bestCount = count;
+      }
+    }
+    return best;
+  }
+
   function buildNeighborGroupColors(): Record<string, string> | null {
     if (!groupNeighborsByCondition || activeNeighborGroup != null) {
       return null;
@@ -535,11 +557,27 @@ interface UploadSearchResultDetail {
     if (neighborGroupSummaries.length === 0) {
       return null;
     }
-    const palette = defaultOrdinalColors(Math.max(1, neighborGroupSummaries.length));
-    const colorMap: Record<string, string> = {};
-    neighborGroupSummaries.forEach((group, index) => {
-      colorMap[group.key] = palette[index % palette.length];
+    // Determine the dominant ICD chapter per group
+    const chapterPerGroup = new Map<string, string>();
+    const uniqueChapters = new Set<string>();
+    for (const group of neighborGroupSummaries) {
+      const chapter = dominantFieldValue(group.items, ICD_CHAPTER_FIELD);
+      chapterPerGroup.set(group.key, chapter);
+      uniqueChapters.add(chapter);
+    }
+    // Assign one color per unique chapter
+    const chapterList = Array.from(uniqueChapters).sort();
+    const palette = defaultOrdinalColors(Math.max(1, chapterList.length));
+    const chapterColorMap = new Map<string, string>();
+    chapterList.forEach((chapter, index) => {
+      chapterColorMap.set(chapter, palette[index % palette.length]);
     });
+    // Map groups to colors via their dominant chapter
+    const colorMap: Record<string, string> = {};
+    for (const group of neighborGroupSummaries) {
+      const chapter = chapterPerGroup.get(group.key) ?? "unknown";
+      colorMap[group.key] = chapterColorMap.get(chapter) ?? palette[0];
+    }
     return colorMap;
   }
 
@@ -694,11 +732,13 @@ interface UploadSearchResultDetail {
         const neighbors = searcherResult.map((item: any) => ({
           id: item?.id ?? item,
           distance: typeof item?.distance === "number" ? item.distance : undefined,
+          confidence: typeof item?.confidence === "number" ? item.confidence : undefined,
         }));
         const filtered = await filterNeighborsByMetadata(neighbors, textSearchFilters);
-        filteredSearcherResult = filtered.map((neighbor) => ({
+        filteredSearcherResult = filtered.map((neighbor: any) => ({
           id: neighbor.id,
           distance: neighbor.distance,
+          confidence: neighbor.confidence,
         }));
       } catch (error) {
         console.error("Failed to apply text search filters", error);

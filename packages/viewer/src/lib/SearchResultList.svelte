@@ -5,9 +5,15 @@
 
   import TooltipContent from "./TooltipContent.svelte";
 
+  import { imageToDataUrl } from "./image_utils.js";
   import { IconClose } from "./icons.js";
   import type { ColumnStyle } from "./renderers/index.js";
   import type { SearchResultItem } from "./search.js";
+
+  const GROUP_THUMBNAIL_COUNT = 5;
+  const GROUP_IMAGE_FIELD = "image";
+  const CONFIDENCE_THRESHOLD = 0.95;
+  const BADGE_FIELDS = ["body_region", "fitzpatrick", "age", "gender"] as const;
 
   interface NeighborGroupEntry {
     key: string;
@@ -173,6 +179,10 @@
         <div class="px-3 py-4 text-slate-400 dark:text-slate-500 text-sm select-none">No conditions available.</div>
       {:else}
         {#each visibleGroups as group (group.key)}
+          {@const thumbItems = [...group.items]
+            .sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity))
+            .filter((item) => item.fields?.[GROUP_IMAGE_FIELD] != null)
+            .slice(0, GROUP_THUMBNAIL_COUNT)}
           <button
             class="m-1 p-2 text-left rounded-md hover:outline outline-slate-500"
             onclick={() => {
@@ -193,6 +203,20 @@
                 {group.count.toLocaleString()} sample{group.count === 1 ? "" : "s"}
               </span>
             </div>
+            {#if thumbItems.length > 0}
+              <div class="flex gap-1.5 mt-1.5 overflow-hidden">
+                {#each thumbItems as thumb}
+                  {@const src = imageToDataUrl(thumb.fields[GROUP_IMAGE_FIELD])}
+                  {#if src}
+                    <img
+                      {src}
+                      alt=""
+                      class="w-12 h-12 object-cover rounded border border-slate-200 dark:border-slate-700 flex-none"
+                    />
+                  {/if}
+                {/each}
+              </div>
+            {/if}
             {#if Number.isFinite(group.distance)}
               <div class="mt-1 text-xs text-slate-400 dark:text-slate-500">
                 Median distance (top {Math.min(group.count, 5)}): {group.distance.toFixed(5)}
@@ -205,45 +229,78 @@
     {:else}
       {#each visibleItems as item, index (item.id)}
         {@const isSelected = selectionMode && selectedItemId != null && item.id === selectedItemId}
+        {@const conf = item.confidence}
+        {@const isLowConfidence = conf != null && conf < CONFIDENCE_THRESHOLD}
+        {@const imgSrc = imageToDataUrl(item.fields?.[GROUP_IMAGE_FIELD])}
         <button
-          class="m-1 p-2 text-left rounded-md hover:outline outline-slate-500{isSelected ? ' ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-900/30' : ''}"
+          class="m-1 p-2 text-left rounded-md hover:outline outline-slate-500{isSelected ? ' ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-900/30' : ''}{isLowConfidence ? ' opacity-40' : ''}"
           onclick={() => {
             onClick?.(item);
           }}
         >
-          <div class="flex items-center gap-2 pb-1">
-            {#if item.distance != null && Number.isFinite(item.distance)}
-              <span class="px-2 flex gap-2 bg-slate-200 text-slate-500 dark:bg-slate-600 dark:text-slate-300 rounded-md text-sm">
-                <div class="text-slate-400 dark:text-slate-400 font-medium">Distance</div>
-                <div class="text-ellipsis whitespace-nowrap overflow-hidden max-w-72">
-                  {item.distance.toFixed(5)}
-                </div>
-              </span>
+          <div class="flex gap-2.5">
+            <!-- Thumbnail -->
+            {#if imgSrc}
+              <img
+                src={imgSrc}
+                alt=""
+                class="w-16 h-16 object-cover rounded border border-slate-200 dark:border-slate-700 flex-none"
+              />
             {/if}
-            {#if selectionMode}
-              <span
-                role="button"
-                tabindex="0"
-                class="ml-auto flex-none px-2 py-0.5 rounded text-xs font-medium transition cursor-pointer select-none {isSelected ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 hover:bg-emerald-200 dark:hover:bg-emerald-800 hover:text-emerald-700 dark:hover:text-emerald-200'}"
-                onclick={(e) => {
-                  e.stopPropagation();
-                  onSelectItem?.(item);
-                }}
-                onkeydown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onSelectItem?.(item);
-                  }
-                }}
-                title="Select as most similar"
-              >
-                {isSelected ? "Selected" : `Select #${index + 1}`}
-              </span>
-            {/if}
-          </div>
-          <div class="overflow-hidden text-ellipsis line-clamp-4 leading-5" use:markHighlight={highlight}>
-            <TooltipContent values={item.fields} columnStyles={columnStyles ?? {}} />
+            <div class="flex-1 min-w-0">
+              <!-- Distance + confidence row -->
+              <div class="flex items-center gap-2 pb-1 flex-wrap">
+                {#if item.distance != null && Number.isFinite(item.distance)}
+                  <span class="px-2 flex gap-2 bg-slate-200 text-slate-500 dark:bg-slate-600 dark:text-slate-300 rounded-md text-sm">
+                    <div class="text-slate-400 dark:text-slate-400 font-medium">Dist</div>
+                    <div class="text-ellipsis whitespace-nowrap overflow-hidden">
+                      {item.distance.toFixed(4)}
+                    </div>
+                  </span>
+                {/if}
+                {#if conf != null && Number.isFinite(conf)}
+                  <span class="px-2 flex gap-1 rounded-md text-sm {conf >= CONFIDENCE_THRESHOLD ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500'}">
+                    <div class="font-medium">{Math.round(conf * 100)}%</div>
+                  </span>
+                {/if}
+                {#if selectionMode}
+                  <span
+                    role="button"
+                    tabindex="0"
+                    class="ml-auto flex-none px-2 py-0.5 rounded text-xs font-medium transition cursor-pointer select-none {isSelected ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300 hover:bg-emerald-200 dark:hover:bg-emerald-800 hover:text-emerald-700 dark:hover:text-emerald-200'}"
+                    onclick={(e) => {
+                      e.stopPropagation();
+                      onSelectItem?.(item);
+                    }}
+                    onkeydown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onSelectItem?.(item);
+                      }
+                    }}
+                    title="Select as most similar"
+                  >
+                    {isSelected ? "Selected" : `Select #${index + 1}`}
+                  </span>
+                {/if}
+              </div>
+              <!-- Metadata badges -->
+              <div class="flex flex-wrap gap-1 pb-1">
+                {#each BADGE_FIELDS as field}
+                  {@const val = item.fields?.[field]}
+                  {#if val != null && String(val).trim() !== ""}
+                    <span class="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400 truncate max-w-[8rem]" title="{field}: {val}">
+                      {val}
+                    </span>
+                  {/if}
+                {/each}
+              </div>
+              <!-- Full tooltip content -->
+              <div class="overflow-hidden text-ellipsis line-clamp-3 leading-5 text-sm" use:markHighlight={highlight}>
+                <TooltipContent values={item.fields} columnStyles={columnStyles ?? {}} />
+              </div>
+            </div>
           </div>
         </button>
         <hr class="border-slate-300 dark:border-slate-600" />
