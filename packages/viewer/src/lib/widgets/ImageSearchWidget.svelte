@@ -15,6 +15,18 @@ interface Neighbor {
   rowIndex?: number;
 }
 
+interface AuditFinding {
+  [category: string]: {
+    [key: string]: boolean | string | string[];
+  };
+}
+
+interface AuditFailure {
+  audit_failed: true;
+  audit_issues: string[];
+  audit_findings: AuditFinding;
+}
+
 type SerializedFilter =
   | { column: string; type: "string"; values: string[] }
   | { column: string; type: "string[]"; values: string[] }
@@ -68,6 +80,7 @@ let status: string = $state("");
 let errorMessage: string | null = $state(null);
 let uploading: boolean = $state(false);
 let topK: number = $state(50);
+let auditFailure: AuditFailure | null = $state(null);
 
 let activeFilters: SerializedFilter[] = $state.raw([]);
 let hasExecutedSearch = false;
@@ -114,6 +127,7 @@ const resolvedUploadBlockedMessage = $derived(
     previewUrl = URL.createObjectURL(file);
     status = "";
     errorMessage = null;
+    auditFailure = null;
   }
 
   function onPreviewLoad(event: Event) {
@@ -200,6 +214,16 @@ const resolvedUploadBlockedMessage = $derived(
       throw new Error(message);
     }
     const payload = await resp.json();
+
+    // Check for anonymization audit failure
+    if (payload?.audit_failed) {
+      throw {
+        isAuditFailure: true,
+        audit_issues: payload.audit_issues ?? [],
+        audit_findings: payload.audit_findings ?? {},
+      };
+    }
+
     const neighbors: Neighbor[] = Array.isArray(payload?.neighbors) ? payload.neighbors : [];
     let queryPoint: { x: number; y: number } | null = null;
     if (payload?.query != null) {
@@ -307,6 +331,7 @@ const resolvedUploadBlockedMessage = $derived(
       return;
     }
     errorMessage = null;
+    auditFailure = null;
     status = "Embedding image...";
     uploading = true;
     try {
@@ -314,9 +339,18 @@ const resolvedUploadBlockedMessage = $derived(
       lastRequestK = topK;
       emitResult(neighbors, previewUrl, { skipStatusReset: false, queryPoint });
     } catch (err: any) {
-      console.error("Upload search failed", err);
-      errorMessage = err?.message ?? "Failed to query nearest neighbors.";
-      status = "";
+      if (err?.isAuditFailure) {
+        auditFailure = {
+          audit_failed: true,
+          audit_issues: err.audit_issues,
+          audit_findings: err.audit_findings,
+        };
+        status = "";
+      } else {
+        console.error("Upload search failed", err);
+        errorMessage = err?.message ?? "Failed to query nearest neighbors.";
+        status = "";
+      }
     } finally {
       uploading = false;
     }
@@ -418,6 +452,50 @@ const resolvedUploadBlockedMessage = $derived(
   {/if}
   {#if errorMessage}
     <div class="text-red-600 dark:text-red-400">{errorMessage}</div>
+  {/if}
+  {#if auditFailure}
+    <div class="rounded-md border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950/40 p-4 flex flex-col gap-3">
+      <div class="flex items-center gap-2">
+        <svg class="w-5 h-5 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+        </svg>
+        <span class="font-semibold text-red-700 dark:text-red-300">Anonymization Audit Failed</span>
+      </div>
+      <p class="text-sm text-red-600 dark:text-red-400">This image was blocked because potential re-identification risks were detected:</p>
+      <ul class="list-disc list-inside text-sm text-red-600 dark:text-red-400 space-y-1">
+        {#each auditFailure.audit_issues as issue}
+          <li>{issue}</li>
+        {/each}
+      </ul>
+      {#if auditFailure.audit_findings && Object.keys(auditFailure.audit_findings).length > 0}
+        <details class="text-xs text-slate-600 dark:text-slate-400">
+          <summary class="cursor-pointer font-medium hover:text-slate-800 dark:hover:text-slate-200">Full audit details</summary>
+          <div class="mt-2 space-y-2">
+            {#each Object.entries(auditFailure.audit_findings) as [category, fields]}
+              <div>
+                <span class="font-semibold text-slate-700 dark:text-slate-300">{category}</span>
+                <div class="ml-3 mt-0.5 space-y-0.5">
+                  {#each Object.entries(fields) as [key, value]}
+                    <div class="flex gap-2">
+                      <span class="text-slate-500 dark:text-slate-400">{key}:</span>
+                      <span class="{typeof value === 'boolean' && value ? 'text-red-600 dark:text-red-400 font-medium' : ''}">
+                        {#if typeof value === 'boolean'}
+                          {value ? 'Yes' : 'No'}
+                        {:else if Array.isArray(value)}
+                          {value.length > 0 ? value.join(', ') : '—'}
+                        {:else}
+                          {value || '—'}
+                        {/if}
+                      </span>
+                    </div>
+                  {/each}
+                </div>
+              </div>
+            {/each}
+          </div>
+        </details>
+      {/if}
+    </div>
   {/if}
   {#if file == null}
     <div class="text-slate-400 dark:text-slate-500">Select a JPG or PNG file to enable the search button.</div>

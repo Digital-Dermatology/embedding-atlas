@@ -30,6 +30,12 @@
     explanation: string;
   }
 
+  interface AuditFinding {
+    [category: string]: {
+      [key: string]: boolean | string | string[];
+    };
+  }
+
   interface SampleResult {
     id: string;
     filename: string;
@@ -41,6 +47,9 @@
     is_flagged?: boolean;
     quality_score?: number | null;
     quality_detail?: QualityDetail | null;
+    audit_failed?: boolean;
+    audit_issues?: string[];
+    audit_findings?: AuditFinding;
   }
 
   const MAX_FILES = 64;
@@ -171,10 +180,10 @@
       }
       userEdits = new Map();
 
-      // Auto-select high-priority samples (skip flagged)
+      // Auto-select high-priority samples (skip flagged and audit-failed)
       const newSelected = new Set<string>();
       for (const s of samples) {
-        if (s.is_flagged) continue;
+        if (s.is_flagged || s.audit_failed) continue;
         if (s.priority && s.priority.score > 0.5) {
           newSelected.add(s.id);
         }
@@ -212,9 +221,9 @@
 
   let sortedSamples = $derived(
     [...samples].sort((a, b) => {
-      // Flagged samples always sink to the bottom
-      const fa = a.is_flagged ? 1 : 0;
-      const fb = b.is_flagged ? 1 : 0;
+      // Audit-failed and flagged samples always sink to the bottom
+      const fa = (a.audit_failed || a.is_flagged) ? 1 : 0;
+      const fb = (b.audit_failed || b.is_flagged) ? 1 : 0;
       if (fa !== fb) return fa - fb;
 
       if (sortBy === "priority") {
@@ -228,6 +237,7 @@
 
   let selectedCount = $derived(selected.size);
   let highPriorityCount = $derived(samples.filter((s) => s.priority && s.priority.score > 0.6).length);
+  let auditFailedCount = $derived(samples.filter((s) => s.audit_failed).length);
 
   function fileToDataUrl(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -427,6 +437,11 @@
               {highPriorityCount} high priority
             </span>
           {/if}
+          {#if auditFailedCount > 0}
+            <span class="text-xs text-red-600 dark:text-red-400">
+              {auditFailedCount} blocked by audit
+            </span>
+          {/if}
         </div>
         <div class="flex items-center gap-2">
           <span class="text-xs text-slate-400">Sort:</span>
@@ -472,6 +487,63 @@
             <div class="rounded-md border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950/40 p-3 text-sm">
               <span class="font-medium text-red-700 dark:text-red-300">{sample.filename}</span>:
               <span class="text-red-600 dark:text-red-400">{sample.error}</span>
+            </div>
+          {:else if sample.audit_failed}
+            <div class="rounded-md border border-red-400 dark:border-red-600 bg-red-50 dark:bg-red-950/40 p-4 flex gap-4">
+              <!-- Thumbnail -->
+              <div class="flex flex-col items-center gap-2 shrink-0">
+                <img
+                  src={previews.get(sample.filename)}
+                  alt={sample.filename}
+                  class="w-20 h-20 object-cover rounded border border-red-200 dark:border-red-700 opacity-60"
+                />
+              </div>
+              <!-- Audit details -->
+              <div class="flex-1 flex flex-col gap-2 min-w-0">
+                <div class="flex items-center gap-2">
+                  <svg class="w-4 h-4 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                  </svg>
+                  <span class="text-sm font-semibold text-red-700 dark:text-red-300">Anonymization Audit Failed</span>
+                  <span class="text-xs text-red-500 dark:text-red-400 truncate ml-auto">{sample.filename}</span>
+                </div>
+                <p class="text-xs text-red-600 dark:text-red-400">This image was blocked due to potential re-identification risks:</p>
+                {#if sample.audit_issues && sample.audit_issues.length > 0}
+                  <ul class="list-disc list-inside text-xs text-red-600 dark:text-red-400 space-y-0.5">
+                    {#each sample.audit_issues as issue}
+                      <li>{issue}</li>
+                    {/each}
+                  </ul>
+                {/if}
+                {#if sample.audit_findings && Object.keys(sample.audit_findings).length > 0}
+                  <details class="text-xs text-slate-600 dark:text-slate-400">
+                    <summary class="cursor-pointer font-medium hover:text-slate-800 dark:hover:text-slate-200">Full audit details</summary>
+                    <div class="mt-2 space-y-2">
+                      {#each Object.entries(sample.audit_findings) as [category, fields]}
+                        <div>
+                          <span class="font-semibold text-slate-700 dark:text-slate-300">{category}</span>
+                          <div class="ml-3 mt-0.5 space-y-0.5">
+                            {#each Object.entries(fields) as [key, value]}
+                              <div class="flex gap-2">
+                                <span class="text-slate-500 dark:text-slate-400">{key}:</span>
+                                <span class="{typeof value === 'boolean' && value ? 'text-red-600 dark:text-red-400 font-medium' : ''}">
+                                  {#if typeof value === 'boolean'}
+                                    {value ? 'Yes' : 'No'}
+                                  {:else if Array.isArray(value)}
+                                    {value.length > 0 ? value.join(', ') : '—'}
+                                  {:else}
+                                    {value || '—'}
+                                  {/if}
+                                </span>
+                              </div>
+                            {/each}
+                          </div>
+                        </div>
+                      {/each}
+                    </div>
+                  </details>
+                {/if}
+              </div>
             </div>
           {:else}
             <div
