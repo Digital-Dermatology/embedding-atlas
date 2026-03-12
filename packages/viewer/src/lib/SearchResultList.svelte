@@ -12,7 +12,6 @@
 
   const GROUP_THUMBNAIL_COUNT = 5;
   const GROUP_IMAGE_FIELD = "image";
-  const CONFIDENCE_THRESHOLD = 0.95;
 
   interface NeighborGroupEntry {
     key: string;
@@ -228,10 +227,8 @@
     {:else}
       {#each visibleItems as item, index (item.id)}
         {@const isSelected = selectionMode && selectedItemId != null && item.id === selectedItemId}
-        {@const conf = item.confidence}
-        {@const isLowConfidence = conf != null && conf < CONFIDENCE_THRESHOLD}
         <button
-          class="m-1 p-2 text-left rounded-md hover:outline outline-slate-500{isSelected ? ' ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-900/30' : ''}{isLowConfidence ? ' opacity-40' : ''}"
+          class="m-1 p-2 text-left rounded-md hover:outline outline-slate-500{isSelected ? ' ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-900/30' : ''}"
           onclick={() => {
             onClick?.(item);
           }}
@@ -243,11 +240,6 @@
                 <div class="text-ellipsis whitespace-nowrap overflow-hidden max-w-72">
                   {item.distance.toFixed(5)}
                 </div>
-              </span>
-            {/if}
-            {#if conf != null && Number.isFinite(conf)}
-              <span class="px-2 flex gap-1 rounded-md text-sm {conf >= CONFIDENCE_THRESHOLD ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500'}">
-                <div class="font-medium">{Math.round(conf * 100)}%</div>
               </span>
             {/if}
             {#if selectionMode}

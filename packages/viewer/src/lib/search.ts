@@ -130,7 +130,6 @@ export interface SearchResultItem {
   id: any;
   fields: Record<string, any>;
   distance?: number;
-  confidence?: number;
   x?: number;
   y?: number;
   text?: string;
@@ -143,7 +142,7 @@ export async function querySearchResultItems(
   columns: { id: string; x?: string | null; y?: string | null; text?: string | null },
   additionalFields: Record<string, any> | null,
   predicate: string | null,
-  items: { id: any; distance?: number; confidence?: number }[],
+  items: { id: any; distance?: number }[],
 ): Promise<SearchResultItem[]> {
   if (items.length === 0) {
     return [];
@@ -170,7 +169,7 @@ export async function querySearchResultItems(
 
   let ids = items.map((x) => x.id);
   let id2order = new Map<any, number>();
-  let id2item = new Map<any, { id: any; distance?: number; confidence?: number }>();
+  let id2item = new Map<any, { id: any; distance?: number }>();
   for (let i = 0; i < ids.length; i++) {
     id2order.set(ids[i], i);
     id2item.set(ids[i], items[i]);
@@ -189,7 +188,7 @@ export async function querySearchResultItems(
   `);
 
   let result = Array.from(r).map((x: any): any => {
-    let r: Record<string, any> = { id: x.id, distance: id2item.get(x.id)?.distance, confidence: id2item.get(x.id)?.confidence, fields: {} };
+    let r: Record<string, any> = { id: x.id, distance: id2item.get(x.id)?.distance, fields: {} };
     for (let key in x) {
       if (key.startsWith("field_")) {
         r.fields[key.substring(6)] = x[key];
@@ -262,7 +261,7 @@ export function resolveSearcher(options: {
     result.nearestNeighbors = async (
       id: any,
       options: { limit?: number; predicate?: string | null; onStatus?: (status: string) => void } = {},
-    ): Promise<{ id: any; distance?: number; confidence?: number }[]> => {
+    ): Promise<{ id: any; distance?: number }[]> => {
       let limit = Math.max(1, Math.min(options.limit ?? DEFAULT_NEIGHBOR_LIMIT, DEFAULT_NEIGHBOR_LIMIT));
       options.onStatus?.("Searching neighbors...");
       const base = typeof window !== "undefined" ? window.location.href : "http://localhost";
@@ -288,7 +287,6 @@ export function resolveSearcher(options: {
           .map((neighbor) => ({
             id: neighbor.id,
             distance: typeof neighbor.distance === "number" ? neighbor.distance : undefined,
-            confidence: typeof neighbor.confidence === "number" ? neighbor.confidence : undefined,
           }))
           .slice(0, limit);
         (truncated as any).__hasMore = moreAvailable;

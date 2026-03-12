@@ -419,13 +419,18 @@ interface UploadSearchResultDetail {
     distance: number;
   };
 
+  const UNKNOWN_CONDITION_PATTERNS = ["no definite diagnosis"];
+
   function normalizeGroupLabel(value: any): string {
     if (value == null) {
       return UNKNOWN_CONDITION_LABEL;
     }
     const text = typeof value === "string" ? value : String(value);
     const trimmed = text.trim();
-    return trimmed === "" ? UNKNOWN_CONDITION_LABEL : trimmed;
+    if (trimmed === "" || UNKNOWN_CONDITION_PATTERNS.includes(trimmed.toLowerCase())) {
+      return UNKNOWN_CONDITION_LABEL;
+    }
+    return trimmed;
   }
 
   function computeNeighborGroupKey(item: SearchResultItem): string {
@@ -501,6 +506,8 @@ interface UploadSearchResultDetail {
       const distances = group.items.map((item) => normalizedDistance(item.distance));
       group.distance = medianOfTopK(distances, NEIGHBOR_GROUP_TOP_K);
     }
+    // Exclude the "Unknown condition" group from the grouped view
+    groups.delete(UNKNOWN_CONDITION_LABEL);
     return Array.from(groups.values()).sort((a, b) => {
       const diff = a.distance - b.distance;
       if (Number.isFinite(diff) && diff !== 0) {
@@ -732,13 +739,11 @@ interface UploadSearchResultDetail {
         const neighbors = searcherResult.map((item: any) => ({
           id: item?.id ?? item,
           distance: typeof item?.distance === "number" ? item.distance : undefined,
-          confidence: typeof item?.confidence === "number" ? item.confidence : undefined,
         }));
         const filtered = await filterNeighborsByMetadata(neighbors, textSearchFilters);
         filteredSearcherResult = filtered.map((neighbor: any) => ({
           id: neighbor.id,
           distance: neighbor.distance,
-          confidence: neighbor.confidence,
         }));
       } catch (error) {
         console.error("Failed to apply text search filters", error);
@@ -1065,7 +1070,7 @@ function updateUploadSearchStatus(
 
 async function displayNeighborResults(
   label: string,
-  neighbors: { id: any; distance?: number; confidence?: number }[],
+  neighbors: { id: any; distance?: number }[],
 ): Promise<SearchResultItem[]> {
   searchResultVisible = true;
   searchResultHighlight = null;

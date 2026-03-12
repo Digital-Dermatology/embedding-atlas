@@ -620,23 +620,7 @@ def make_server(
                 {"error": f"Failed to process image: {exc}"}, status_code=500
             )
 
-        # Compute per-neighbor confidence if the pipeline supports it.
-        confidences = None
-        if hasattr(upload_pipeline, "compute_confidence"):
-            try:
-                neighbor_row_ids = [
-                    int(idx)
-                    for idx in indices
-                    if idx is not None and idx >= 0 and idx < total_rows
-                ]
-                confidences = upload_pipeline.compute_confidence(
-                    vector, neighbor_row_ids
-                )
-            except Exception:
-                confidences = None
-
         neighbors = []
-        conf_idx = 0
         for idx, dist in zip(indices, distances):
             if idx is None or idx < 0 or idx >= total_rows:
                 continue
@@ -648,9 +632,6 @@ def make_server(
                 "rowIndex": int(_json_scalar(idx)),
                 "distance": float(dist),
             }
-            if confidences is not None and conf_idx < len(confidences):
-                entry["confidence"] = float(confidences[conf_idx])
-            conf_idx += 1
             neighbors.append(entry)
         query_point = None
         coords = None
