@@ -419,7 +419,13 @@ interface UploadSearchResultDetail {
     distance: number;
   };
 
-  const UNKNOWN_CONDITION_PATTERNS = ["no definite diagnosis"];
+  const UNKNOWN_CONDITION_PATTERNS = [
+    "no definite diagnosis",
+    "no definitive diagnosis",
+    "null",
+    "(null)",
+    "none",
+  ];
 
   function normalizeGroupLabel(value: any): string {
     if (value == null) {
