@@ -82,6 +82,8 @@ let uploading: boolean = $state(false);
 let topK: number = $state(50);
 let auditFailure: AuditFailure | null = $state(null);
 
+let auditOverrideAccepted: boolean = $state(false);
+
 let activeFilters: SerializedFilter[] = $state.raw([]);
 let hasExecutedSearch = false;
 let currentNeighbors: Neighbor[] = [];
@@ -128,6 +130,7 @@ const resolvedUploadBlockedMessage = $derived(
     status = "";
     errorMessage = null;
     auditFailure = null;
+    auditOverrideAccepted = false;
   }
 
   function onPreviewLoad(event: Event) {
@@ -197,6 +200,7 @@ const resolvedUploadBlockedMessage = $derived(
 
   async function requestNeighbors(
     kValue: number,
+    options?: { skipAudit?: boolean },
   ): Promise<{ neighbors: Neighbor[]; queryPoint: { x: number; y: number } | null }>
   {
     if (!file) {
@@ -205,7 +209,11 @@ const resolvedUploadBlockedMessage = $derived(
     const uploadFile = await resolveUploadFile();
     const formData = new FormData();
     formData.append("file", uploadFile);
-    const resp = await fetch(`${endpoint}?k=${encodeURIComponent(kValue)}`, {
+    let url = `${endpoint}?k=${encodeURIComponent(kValue)}`;
+    if (options?.skipAudit) {
+      url += "&skip_audit=1";
+    }
+    const resp = await fetch(url, {
       method: "POST",
       body: formData,
     });
@@ -356,6 +364,28 @@ const resolvedUploadBlockedMessage = $derived(
     }
   }
 
+  async function submitWithAuditOverride() {
+    if (disabled || file == null || uploading || !auditOverrideAccepted) {
+      return;
+    }
+    errorMessage = null;
+    auditFailure = null;
+    status = "Embedding image...";
+    uploading = true;
+    try {
+      const { neighbors, queryPoint } = await requestNeighbors(topK, { skipAudit: true });
+      lastRequestK = topK;
+      auditOverrideAccepted = false;
+      emitResult(neighbors, previewUrl, { skipStatusReset: false, queryPoint });
+    } catch (err: any) {
+      console.error("Upload search failed", err);
+      errorMessage = err?.message ?? "Failed to query nearest neighbors.";
+      status = "";
+    } finally {
+      uploading = false;
+    }
+  }
+
   function updateTopK(value: string) {
     const parsed = parseInt(value, 10);
     if (!Number.isNaN(parsed) && parsed > 0) {
@@ -424,6 +454,12 @@ const resolvedUploadBlockedMessage = $derived(
     columns={columns}
     on:change={handleFiltersChange}
   />
+
+  {#if file}
+    <div class="rounded-md border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+      By uploading this image, I confirm that the patient has provided informed consent for the use of their image in this diagnostic support tool, in accordance with applicable data protection regulations.
+    </div>
+  {/if}
 
   <div class="flex items-center gap-3">
     <div class="flex items-center gap-2">
@@ -495,6 +531,32 @@ const resolvedUploadBlockedMessage = $derived(
           </div>
         </details>
       {/if}
+
+      <!-- Override section -->
+      <div class="border-t border-red-200 dark:border-red-800 pt-3 mt-1 flex flex-col gap-2">
+        <label class="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
+          <input
+            type="checkbox"
+            class="mt-0.5 accent-red-600"
+            checked={auditOverrideAccepted}
+            onchange={(e) => { auditOverrideAccepted = (e.currentTarget as HTMLInputElement).checked; }}
+          />
+          <span>
+            I acknowledge the identified de-identification risks and accept full responsibility for uploading this image.
+            I confirm that appropriate consent has been obtained and that I am authorized to use this image in compliance with all applicable privacy regulations and institutional policies.
+          </span>
+        </label>
+        <button
+          class="self-end rounded-md px-3 py-1.5 text-xs font-medium transition-colors
+            {auditOverrideAccepted
+              ? 'bg-red-600 text-white hover:bg-red-700'
+              : 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed'}"
+          disabled={!auditOverrideAccepted || uploading}
+          onclick={submitWithAuditOverride}
+        >
+          {uploading ? "Searching..." : "Proceed Anyway"}
+        </button>
+      </div>
     </div>
   {/if}
   {#if file == null}

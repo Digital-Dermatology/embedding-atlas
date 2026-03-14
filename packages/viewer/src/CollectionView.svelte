@@ -407,6 +407,9 @@
               </div>
             {/each}
           </div>
+          <div class="rounded-md border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+            By uploading these images, I confirm that the patient has provided informed consent for the use of their images in this diagnostic support tool, in accordance with applicable data protection regulations.
+          </div>
           <button
             class="self-end rounded-md px-4 py-2 bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
             onclick={analyze}
