@@ -369,16 +369,38 @@ const resolvedUploadBlockedMessage = $derived(
       return;
     }
     errorMessage = null;
-    auditFailure = null;
     status = "Embedding image...";
     uploading = true;
     try {
-      const { neighbors, queryPoint } = await requestNeighbors(topK, { skipAudit: true });
+      // Build request manually to skip audit without re-checking the audit_failed flag
+      const uploadFile = await resolveUploadFile();
+      const formData = new FormData();
+      formData.append("file", uploadFile);
+      const url = `${endpoint}?k=${encodeURIComponent(topK)}&skip_audit=1`;
+      const resp = await fetch(url, {
+        method: "POST",
+        body: formData,
+      });
+      if (!resp.ok) {
+        const message = resp.status === 404 ? "Upload search is not available on this server." : `Server error (${resp.status})`;
+        throw new Error(message);
+      }
+      const payload = await resp.json();
+      const neighbors: Neighbor[] = Array.isArray(payload?.neighbors) ? payload.neighbors : [];
+      let queryPoint: { x: number; y: number } | null = null;
+      if (payload?.query != null) {
+        const maybeX = Number(payload.query.x);
+        const maybeY = Number(payload.query.y);
+        if (Number.isFinite(maybeX) && Number.isFinite(maybeY)) {
+          queryPoint = { x: maybeX, y: maybeY };
+        }
+      }
       lastRequestK = topK;
+      auditFailure = null;
       auditOverrideAccepted = false;
       emitResult(neighbors, previewUrl, { skipStatusReset: false, queryPoint });
     } catch (err: any) {
-      console.error("Upload search failed", err);
+      console.error("Upload search (override) failed", err);
       errorMessage = err?.message ?? "Failed to query nearest neighbors.";
       status = "";
     } finally {
