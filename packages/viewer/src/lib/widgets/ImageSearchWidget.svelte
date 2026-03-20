@@ -190,8 +190,9 @@ const resolvedUploadBlockedMessage = $derived(
     resetPreview();
   });
 
-  function handleFiltersChange(event: { filters: SerializedFilter[] }) {
-    activeFilters = event?.filters ?? [];
+  function handleFiltersChange(event: CustomEvent<{ filters: SerializedFilter[] }> | { filters: SerializedFilter[] }) {
+    const detail = (event as any)?.detail ?? event;
+    activeFilters = detail?.filters ?? [];
     if (!hasExecutedSearch) {
       return;
     }

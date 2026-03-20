@@ -396,8 +396,12 @@ interface UploadSearchResultDetail {
       pendingUploadSurveySignature = null;
     }
   }
-  function handleTextFiltersChange(event: { filters: UploadSearchFilter[] }) {
-    textSearchFilters = event?.filters ?? [];
+  function handleTextFiltersChange(event: CustomEvent<{ filters: UploadSearchFilter[] }> | { filters: UploadSearchFilter[] }) {
+    const detail = (event as any)?.detail ?? event;
+    textSearchFilters = detail?.filters ?? [];
+    if (lastSearchArgs != null) {
+      void doSearch(lastSearchArgs.query, lastSearchArgs.mode);
+    }
   }
   let uploadSearchDetail = $state.raw<UploadSearchResultDetail | null>(null);
   let uploadSearchNeighborCount: number = $state(0);
