@@ -64,7 +64,7 @@ type UploadSearchFilter =
   | { column: string; type: "number"; min: number | null; max: number | null };
 
 interface UploadSearchResultDetail {
-  neighbors: { id: any; distance?: number }[];
+  neighbors: { id: any; distance?: number; distance_percentile?: number }[];
   previewUrl: string | null;
   filters: UploadSearchFilter[];
   setStatus?: (value: string) => void;
@@ -421,6 +421,7 @@ interface UploadSearchResultDetail {
     items: SearchResultItem[];
     count: number;
     distance: number;
+    median_percentile?: number;
   };
 
   const UNKNOWN_CONDITION_PATTERNS = [
@@ -515,6 +516,15 @@ interface UploadSearchResultDetail {
     for (const group of groups.values()) {
       const distances = group.items.map((item) => normalizedDistance(item.distance));
       group.distance = medianOfTopK(distances, NEIGHBOR_GROUP_TOP_K);
+      const percentiles = group.items
+        .map((item) => item.distance_percentile)
+        .filter((p): p is number => p != null && Number.isFinite(p))
+        .sort((a, b) => a - b)
+        .slice(0, NEIGHBOR_GROUP_TOP_K);
+      if (percentiles.length > 0) {
+        const mid = Math.floor(percentiles.length / 2);
+        group.median_percentile = percentiles.length % 2 === 1 ? percentiles[mid] : (percentiles[mid - 1] + percentiles[mid]) / 2;
+      }
     }
     // Exclude the "Unknown condition" group from the grouped view
     groups.delete(UNKNOWN_CONDITION_LABEL);
@@ -997,9 +1007,9 @@ function clearNeighborGroupSelection() {
 }
 
 async function filterNeighborsByMetadata(
-  neighbors: { id: any; distance?: number }[],
+  neighbors: { id: any; distance?: number; distance_percentile?: number }[],
   filters: UploadSearchFilter[],
-): Promise<{ id: any; distance?: number }[]> {
+): Promise<{ id: any; distance?: number; distance_percentile?: number }[]> {
   const activeFilters = filters.filter(isFilterActive);
   if (activeFilters.length === 0) {
     return neighbors;
@@ -1056,7 +1066,7 @@ async function filterNeighborsByMetadata(
 
 function updateUploadSearchStatus(
   setStatus: ((value: string) => void) | undefined,
-  neighbors: { id: any; distance?: number }[],
+  neighbors: { id: any; distance?: number; distance_percentile?: number }[],
   filters: UploadSearchFilter[],
 ) {
   if (!setStatus) {
@@ -1080,7 +1090,7 @@ function updateUploadSearchStatus(
 
 async function displayNeighborResults(
   label: string,
-  neighbors: { id: any; distance?: number }[],
+  neighbors: { id: any; distance?: number; distance_percentile?: number }[],
 ): Promise<SearchResultItem[]> {
   searchResultVisible = true;
   searchResultHighlight = null;

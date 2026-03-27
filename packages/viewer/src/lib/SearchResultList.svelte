@@ -20,6 +20,7 @@
     items: SearchResultItem[];
     count: number;
     distance: number;
+    median_percentile?: number;
   }
 
   interface Props {
@@ -217,7 +218,11 @@
             {/if}
             {#if Number.isFinite(group.distance)}
               <div class="mt-1 text-xs text-slate-400 dark:text-slate-500">
-                Median distance (top {Math.min(group.count, 5)}): {group.distance.toFixed(5)}
+                Median distance (top {Math.min(group.count, 5)}): {group.distance.toFixed(5)}{#if group.median_percentile != null && Number.isFinite(group.median_percentile)}
+                  <span class="ml-1.5 {group.median_percentile <= 25 ? 'text-emerald-600 dark:text-emerald-400' : group.median_percentile <= 75 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}">
+                    (P{group.median_percentile.toFixed(0)})
+                  </span>
+                {/if}
               </div>
             {/if}
           </button>
@@ -240,6 +245,13 @@
                 <div class="text-ellipsis whitespace-nowrap overflow-hidden max-w-72">
                   {item.distance.toFixed(5)}
                 </div>
+              </span>
+            {/if}
+            {#if item.distance_percentile != null && Number.isFinite(item.distance_percentile)}
+              {@const pct = item.distance_percentile}
+              <span class="px-2 flex gap-2 rounded-md text-sm {pct <= 25 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300' : pct <= 75 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300' : 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'}">
+                <div class="font-medium {pct <= 25 ? 'text-emerald-500 dark:text-emerald-400' : pct <= 75 ? 'text-amber-500 dark:text-amber-400' : 'text-red-500 dark:text-red-400'}">Percentile</div>
+                <div>{pct.toFixed(1)}%</div>
               </span>
             {/if}
             {#if selectionMode}

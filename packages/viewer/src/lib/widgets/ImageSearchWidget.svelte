@@ -12,6 +12,7 @@ import type { Coordinator } from "@uwdata/mosaic-core";
 interface Neighbor {
   id: any;
   distance: number;
+  distance_percentile?: number;
   rowIndex?: number;
 }
 
