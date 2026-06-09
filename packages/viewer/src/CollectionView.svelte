@@ -313,9 +313,9 @@
   }
 
   function priorityLabel(score: number): string {
-    if (score > 0.6) return "High Priority";
-    if (score > 0.3) return "Medium";
-    return "Low";
+    if (score > 0.6) return "Novelty: High";
+    if (score > 0.3) return "Novelty: Medium";
+    return "Novelty: Low";
   }
 </script>
 
