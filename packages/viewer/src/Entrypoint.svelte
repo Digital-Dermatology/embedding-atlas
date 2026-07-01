@@ -4,6 +4,7 @@
 
   import AdhocViewer from "./AdhocViewer.svelte";
   import CollectionView from "./CollectionView.svelte";
+  import GalleryRatingView from "./GalleryRatingView.svelte";
   import Home from "./Home.svelte";
   import Test from "./Test.svelte";
 
@@ -12,6 +13,7 @@
     "/test": Test,
     "/upload": AdhocViewer,
     "/collection": CollectionView,
+    "/gallery": GalleryRatingView,
   };
 </script>
 

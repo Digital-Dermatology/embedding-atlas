@@ -76,6 +76,8 @@
     });
     // Always add Collection tab (standalone SPA route, not a state variant).
     tabs.push({ label: "Collection", route: "collection", href: "/#/collection" });
+    // Teaching Gallery: rate generated teaching strips (standalone SPA route).
+    tabs.push({ label: "Teaching Gallery", route: "gallery", href: "/#/gallery" });
     return tabs;
   }
 
