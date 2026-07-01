@@ -25,6 +25,13 @@
   let axisF = $state("all");
   let modF = $state("all");
   let methF = $state("all");
+  let rater = $state((typeof localStorage !== "undefined" && localStorage.getItem("gallery_rater")) || "");
+  function setRater(v: string) {
+    rater = v;
+    try {
+      localStorage.setItem("gallery_rater", v);
+    } catch {}
+  }
 
   let axes = $derived(["all", ...Array.from(new Set(strips.map((s) => s.axis)))]);
   let mods = $derived(["all", ...Array.from(new Set(strips.map((s) => s.modality)))]);
@@ -60,7 +67,7 @@
       await fetch("/data/gallery-rating", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: strip.id, sample_realism: strip.sample_realism, trajectory_realism: strip.trajectory_realism }),
+        body: JSON.stringify({ id: strip.id, sample_realism: strip.sample_realism, trajectory_realism: strip.trajectory_realism, rater }),
       });
     } catch (e) {
       /* keep local */
@@ -88,6 +95,13 @@
           Rate each strip twice — <b>sample realism</b> (are the images realistic? bad start/end = low) and <b>trajectory realism</b> (is the sweep sensible?). Trains two filters.
         </p>
       </div>
+      <input
+        value={rater}
+        oninput={(e) => setRater(e.currentTarget.value)}
+        placeholder="your name (rater)"
+        title="Your judgements are stored under this name so multiple people can rate."
+        class="shrink-0 w-36 px-2.5 py-1 rounded-md text-xs border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200"
+      />
       <div class="text-sm tabular-nums text-slate-600 dark:text-slate-300 shrink-0">{doneCount}/{strips.length} done</div>
     </div>
 
