@@ -1,4 +1,4 @@
-<!-- Teaching Gallery: two tabs. TRANSITIONS = generated attribute-sweep strips rated on sample realism
+<!-- Gallery: two tabs. TRANSITIONS = generated attribute-sweep strips rated on sample realism
      (bad start/end) + trajectory realism (is the sweep sensible). SAMPLES = diverse single decoded images
      rated on realism only (cleaner per-sample labels). A rater name is REQUIRED before any rating. -->
 <script lang="ts">
@@ -105,7 +105,7 @@
       <a href="/" class="shrink-0"><img src={skinmapLogo} alt="SkinMap logo" class="w-10 h-10 rounded-lg" /></a>
       <div class="flex-1 flex flex-col gap-0.5">
         <div class="flex items-center gap-3">
-          <h1 class="text-xl font-semibold tracking-wide text-slate-800 dark:text-slate-100">Teaching Gallery</h1>
+          <h1 class="text-xl font-semibold tracking-wide text-slate-800 dark:text-slate-100">Gallery</h1>
           <a href="/" class="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">&larr; Back to Map</a>
         </div>
         <p class="text-xs text-slate-500 dark:text-slate-400">
