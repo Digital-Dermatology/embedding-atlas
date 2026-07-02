@@ -20,7 +20,7 @@
   let samples: Sample[] = $state([]);
   let loading = $state(true);
   let error: string | null = $state(null);
-  let tab = $state("transitions");
+  let tab = $state("samples");
   let rater = $state((typeof localStorage !== "undefined" && localStorage.getItem("gallery_rater")) || "");
   function setRater(v: string) {
     rater = v;
@@ -132,7 +132,7 @@
 
     <!-- tabs -->
     <div class="flex items-center gap-2 border-b border-slate-300 dark:border-slate-600">
-      {#each [["transitions", `Transitions (${doneStrips}/${strips.length})`], ["samples", `Samples (${doneSamples}/${samples.length})`]] as [id, label]}
+      {#each [["samples", `Samples (${doneSamples}/${samples.length})`], ["transitions", `Transitions (${doneStrips}/${strips.length})`]] as [id, label]}
         <button
           class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors {tab === id
             ? 'border-blue-600 text-blue-700 dark:text-blue-400'
