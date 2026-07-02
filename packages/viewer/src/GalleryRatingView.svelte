@@ -61,15 +61,21 @@
     { v: 4, l: "⭐", t: "excellent" },
   ];
 
-  onMount(async () => {
+  // Load manifests for the CURRENT rater so the shown ratings are only this person's (independent raters).
+  async function loadManifests(r: string) {
+    const q = r ? `?rater=${encodeURIComponent(r)}` : "";
     try {
-      const r = await fetch("/data/gallery-manifest");
-      if (r.ok) strips = await r.json();
+      const res = await fetch(`/data/gallery-manifest${q}`);
+      if (res.ok) strips = await res.json();
     } catch (e: any) { error = String(e?.message ?? e); }
     try {
-      const r = await fetch("/data/samples-manifest");
-      if (r.ok) samples = await r.json();
+      const res = await fetch(`/data/samples-manifest${q}`);
+      if (res.ok) samples = await res.json();
     } catch { /* samples optional */ }
+  }
+
+  onMount(async () => {
+    await loadManifests(rater);
     loading = false;
   });
 
@@ -120,6 +126,7 @@
       <input
         value={rater}
         oninput={(e) => setRater(e.currentTarget.value)}
+        onchange={() => loadManifests(rater)}
         placeholder="required to rate"
         class="flex-1 max-w-xs px-2.5 py-1 rounded-md text-sm border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-100"
       />
