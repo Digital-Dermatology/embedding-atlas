@@ -1,45 +1,57 @@
-<!-- Teaching Gallery tab: rate each generated teaching strip on TWO axes — sample realism (are the
-     generated images realistic lesions? catches bad start/end) and trajectory realism (is the transition
-     across the axis sensible?). Both POST to /data/gallery-rating → train two classifiers. Standalone SPA route. -->
+<!-- Teaching Gallery: two tabs. TRANSITIONS = generated attribute-sweep strips rated on sample realism
+     (bad start/end) + trajectory realism (is the sweep sensible). SAMPLES = diverse single decoded images
+     rated on realism only (cleaner per-sample labels). A rater name is REQUIRED before any rating. -->
 <script lang="ts">
   import { onMount } from "svelte";
   import { systemDarkMode } from "./lib/dark_mode_store.js";
   import skinmapLogo from "./assets/atlas.png";
 
   interface Strip {
-    id: string;
-    title: string;
-    description: string;
-    image: string;
-    axis: string;
-    condition: string;
-    modality: string;
-    method: string;
-    sample_realism: number | null;
-    trajectory_realism: number | null;
+    id: string; title: string; description: string; image: string;
+    axis: string; condition: string; modality: string; method: string;
+    sample_realism: number | null; trajectory_realism: number | null;
+  }
+  interface Sample {
+    id: string; image: string; modality: string; condition: string;
+    fitzpatrick: number | null; body_region: string; origin: string; realism: number | null;
   }
 
   let strips: Strip[] = $state([]);
+  let samples: Sample[] = $state([]);
   let loading = $state(true);
   let error: string | null = $state(null);
-  let axisF = $state("all");
-  let modF = $state("all");
-  let methF = $state("all");
+  let tab = $state("transitions");
   let rater = $state((typeof localStorage !== "undefined" && localStorage.getItem("gallery_rater")) || "");
   function setRater(v: string) {
     rater = v;
-    try {
-      localStorage.setItem("gallery_rater", v);
-    } catch {}
+    try { localStorage.setItem("gallery_rater", v); } catch {}
   }
+  let canRate = $derived(rater.trim().length > 0);
 
+  // transitions filters
+  let axisF = $state("all"), modF = $state("all"), methF = $state("all");
   let axes = $derived(["all", ...Array.from(new Set(strips.map((s) => s.axis)))]);
   let mods = $derived(["all", ...Array.from(new Set(strips.map((s) => s.modality)))]);
   let meths = $derived(["all", ...Array.from(new Set(strips.map((s) => s.method)))]);
-  let shown = $derived(
+  let shownStrips = $derived(
     strips.filter((s) => (axisF === "all" || s.axis === axisF) && (modF === "all" || s.modality === modF) && (methF === "all" || s.method === methF)),
   );
-  let doneCount = $derived(strips.filter((s) => s.sample_realism != null && s.trajectory_realism != null).length);
+  // samples filters
+  let smodF = $state("all"), sfstF = $state("all");
+  let smods = $derived(["all", ...Array.from(new Set(samples.map((s) => s.modality)))]);
+  const FSTBANDS = ["all", "I-II", "III-IV", "V-VI"];
+  function fstBand(v: number | null): string {
+    if (v == null) return "?";
+    if (v <= 2) return "I-II";
+    if (v <= 4) return "III-IV";
+    return "V-VI";
+  }
+  let shownSamples = $derived(
+    samples.filter((s) => (smodF === "all" || s.modality === smodF) && (sfstF === "all" || fstBand(s.fitzpatrick) === sfstF)),
+  );
+
+  let doneStrips = $derived(strips.filter((s) => s.sample_realism != null && s.trajectory_realism != null).length);
+  let doneSamples = $derived(samples.filter((s) => s.realism != null).length);
 
   const SCALE = [
     { v: 0, l: "❌", t: "unrealistic / off" },
@@ -52,30 +64,34 @@
   onMount(async () => {
     try {
       const r = await fetch("/data/gallery-manifest");
-      if (!r.ok) throw new Error(`manifest HTTP ${r.status}`);
-      strips = await r.json();
-    } catch (e: any) {
-      error = String(e?.message ?? e);
-    }
+      if (r.ok) strips = await r.json();
+    } catch (e: any) { error = String(e?.message ?? e); }
+    try {
+      const r = await fetch("/data/samples-manifest");
+      if (r.ok) samples = await r.json();
+    } catch { /* samples optional */ }
     loading = false;
   });
 
-  async function rate(strip: Strip, kind: "sample_realism" | "trajectory_realism", v: number) {
-    strip[kind] = v;
-    strips = strips;
+  async function rateStrip(strip: Strip, kind: "sample_realism" | "trajectory_realism", v: number) {
+    if (!canRate) return;
+    strip[kind] = v; strips = strips;
     try {
       await fetch("/data/gallery-rating", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: strip.id, sample_realism: strip.sample_realism, trajectory_realism: strip.trajectory_realism, rater }),
       });
-    } catch (e) {
-      /* keep local */
-    }
+    } catch { /* keep local */ }
   }
-
-  function chips(sel: string, opts: string[], set: (v: string) => void) {
-    return { sel, opts, set };
+  async function rateSample(s: Sample, v: number) {
+    if (!canRate) return;
+    s.realism = v; samples = samples;
+    try {
+      await fetch("/data/samples-rating", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: s.id, realism: v, rater }),
+      });
+    } catch { /* keep local */ }
   }
 </script>
 
@@ -83,7 +99,8 @@
   class="fixed left-0 right-0 top-0 bottom-0 overflow-y-auto select-none text-slate-800 bg-slate-200 dark:text-slate-200 dark:bg-slate-800"
   class:dark={$systemDarkMode}
 >
-  <div class="max-w-5xl mx-auto flex flex-col gap-4 p-6">
+  <div class="max-w-5xl mx-auto flex flex-col gap-3 p-6">
+    <!-- header -->
     <div class="flex items-center gap-4">
       <a href="/" class="shrink-0"><img src={skinmapLogo} alt="SkinMap logo" class="w-10 h-10 rounded-lg" /></a>
       <div class="flex-1 flex flex-col gap-0.5">
@@ -92,48 +109,58 @@
           <a href="/" class="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">&larr; Back to Map</a>
         </div>
         <p class="text-xs text-slate-500 dark:text-slate-400">
-          Rate each strip twice — <b>sample realism</b> (are the images realistic? bad start/end = low) and <b>trajectory realism</b> (is the sweep sensible?). Trains two filters.
+          Rate generated dermatology imagery. <b>Transitions</b> = attribute sweeps (sample + trajectory realism); <b>Samples</b> = single images (realism). Trains the realism filters.
         </p>
       </div>
+    </div>
+
+    <!-- RATER (required) -->
+    <div class="flex items-center gap-3 rounded-lg border {canRate ? 'border-slate-300 dark:border-slate-600' : 'border-amber-400 dark:border-amber-600 bg-amber-50 dark:bg-amber-950/30'} px-3 py-2">
+      <span class="text-sm font-medium text-slate-700 dark:text-slate-200">Your name</span>
       <input
         value={rater}
         oninput={(e) => setRater(e.currentTarget.value)}
-        placeholder="your name (rater)"
-        title="Your judgements are stored under this name so multiple people can rate."
-        class="shrink-0 w-36 px-2.5 py-1 rounded-md text-xs border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200"
+        placeholder="required to rate"
+        class="flex-1 max-w-xs px-2.5 py-1 rounded-md text-sm border bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600 text-slate-800 dark:text-slate-100"
       />
-      <div class="text-sm tabular-nums text-slate-600 dark:text-slate-300 shrink-0">{doneCount}/{strips.length} done</div>
+      {#if !canRate}
+        <span class="text-xs text-amber-700 dark:text-amber-400">Enter your name to start rating.</span>
+      {:else}
+        <span class="text-xs text-slate-400 dark:text-slate-500">rating as <b>{rater}</b></span>
+      {/if}
     </div>
 
-    {#if !loading && !error}
+    <!-- tabs -->
+    <div class="flex items-center gap-2 border-b border-slate-300 dark:border-slate-600">
+      {#each [["transitions", `Transitions (${doneStrips}/${strips.length})`], ["samples", `Samples (${doneSamples}/${samples.length})`]] as [id, label]}
+        <button
+          class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors {tab === id
+            ? 'border-blue-600 text-blue-700 dark:text-blue-400'
+            : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}"
+          onclick={() => (tab = id)}>{label}</button>
+      {/each}
+    </div>
+
+    {#if loading}
+      <div class="text-center p-10 text-slate-500 dark:text-slate-400">Loading…</div>
+    {:else if error}
+      <div class="rounded-md border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm text-red-700 dark:text-red-300">Failed to load: {error}</div>
+    {:else if tab === "transitions"}
+      <!-- transition filters -->
       <div class="flex flex-col gap-1.5">
         {#each [["axis", axes, axisF, (v) => (axisF = v)], ["modality", mods, modF, (v) => (modF = v)], ["method", meths, methF, (v) => (methF = v)]] as [label, opts, sel, set]}
           <div class="flex gap-2 flex-wrap items-center">
             <span class="text-xs text-slate-400 w-16">{label}</span>
             {#each opts as o}
-              <button
-                class="px-2.5 py-0.5 rounded-full text-xs border transition-colors {sel === o
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800'}"
-                onclick={() => set(o)}>{o}</button
-              >
+              <button class="px-2.5 py-0.5 rounded-full text-xs border transition-colors {sel === o ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800'}" onclick={() => set(o)}>{o}</button>
             {/each}
           </div>
         {/each}
       </div>
-    {/if}
-
-    {#if loading}
-      <div class="text-center p-10 text-slate-500 dark:text-slate-400">Loading gallery…</div>
-    {:else if error}
-      <div class="rounded-md border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm text-red-700 dark:text-red-300">Failed to load gallery: {error}</div>
-    {:else}
       <div class="flex flex-col gap-4">
-        {#each shown as s (s.id)}
-          <div class="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-3 flex flex-col gap-2 shadow-sm">
-            <div class="flex items-baseline justify-between gap-3">
-              <div class="font-medium text-slate-800 dark:text-slate-100">{s.title}</div>
-            </div>
+        {#each shownStrips as s (s.id)}
+          <div class="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-3 flex flex-col gap-2 shadow-sm {canRate ? '' : 'opacity-60'}">
+            <div class="font-medium text-slate-800 dark:text-slate-100">{s.title}</div>
             <div class="text-xs text-slate-500 dark:text-slate-400">{s.description}</div>
             <img src={s.image} alt={s.title} loading="lazy" class="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950" />
             <div class="flex flex-col gap-1.5 pt-1">
@@ -141,16 +168,40 @@
                 <div class="flex items-center gap-2">
                   <span class="text-xs text-slate-400 dark:text-slate-500 w-52">{lab}</span>
                   {#each SCALE as sc}
-                    <button
-                      title={sc.t}
-                      class="text-lg leading-none px-2.5 py-1.5 rounded-md border transition-colors {s[kind] === sc.v
-                        ? 'bg-blue-600 border-blue-600 scale-110'
-                        : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700'}"
-                      onclick={() => rate(s, kind, sc.v)}>{sc.l}</button
-                    >
+                    <button title={sc.t} disabled={!canRate}
+                      class="text-lg leading-none px-2.5 py-1.5 rounded-md border transition-colors disabled:cursor-not-allowed {s[kind] === sc.v ? 'bg-blue-600 border-blue-600 scale-110' : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700'}"
+                      onclick={() => rateStrip(s, kind, sc.v)}>{sc.l}</button>
                   {/each}
                   {#if s[kind] != null}<span class="text-xs text-emerald-600 dark:text-emerald-400 ml-1">✓</span>{/if}
                 </div>
+              {/each}
+            </div>
+          </div>
+        {/each}
+      </div>
+    {:else}
+      <!-- samples filters -->
+      <div class="flex flex-col gap-1.5">
+        {#each [["modality", smods, smodF, (v) => (smodF = v)], ["fitzpatrick", FSTBANDS, sfstF, (v) => (sfstF = v)]] as [label, opts, sel, set]}
+          <div class="flex gap-2 flex-wrap items-center">
+            <span class="text-xs text-slate-400 w-16">{label}</span>
+            {#each opts as o}
+              <button class="px-2.5 py-0.5 rounded-full text-xs border transition-colors {sel === o ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800'}" onclick={() => set(o)}>{o}</button>
+            {/each}
+          </div>
+        {/each}
+      </div>
+      <!-- samples grid -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        {#each shownSamples as s (s.id)}
+          <div class="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-1.5 flex flex-col gap-1 shadow-sm {canRate ? '' : 'opacity-60'}">
+            <img src={s.image} alt={s.condition} loading="lazy" class="w-full aspect-square object-cover rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950" />
+            <div class="text-[10px] text-slate-400 dark:text-slate-500 truncate" title="{s.modality} · {s.condition} · FST {s.fitzpatrick ?? '?'} · {s.body_region} · {s.origin}">{s.modality} · {s.condition || "—"}</div>
+            <div class="flex items-center justify-between">
+              {#each SCALE as sc}
+                <button title={sc.t} disabled={!canRate}
+                  class="text-base leading-none px-1 py-0.5 rounded transition-colors disabled:cursor-not-allowed {s.realism === sc.v ? 'bg-blue-600 scale-110' : 'hover:bg-slate-100 dark:hover:bg-slate-700'}"
+                  onclick={() => rateSample(s, sc.v)}>{sc.l}</button>
               {/each}
             </div>
           </div>
