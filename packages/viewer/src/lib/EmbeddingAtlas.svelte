@@ -1567,12 +1567,17 @@ function clearSearch() {
     class:dark={$darkMode}
     style:color-scheme={$darkMode ? "dark" : "light"}
   >
-    <div class="m-2 flex flex-row flex-wrap items-center gap-x-3 gap-y-1">
-      <div class="flex items-center gap-4 shrink-0">
+    <div
+      class="m-2 flex flex-row items-center gap-x-3"
+      class:flex-nowrap={!isCompactLayout}
+      class:flex-wrap={isCompactLayout}
+      class:gap-y-1={isCompactLayout}
+    >
+      <div class="flex items-center gap-2 shrink-0">
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
-          class="flex items-center gap-3 pr-4 border-r border-slate-300 dark:border-slate-700 mr-2 cursor-pointer hover:opacity-75 transition-opacity"
+          class="flex items-center gap-2 pr-3 border-r border-slate-300 dark:border-slate-700 mr-1 cursor-pointer hover:opacity-75 transition-opacity"
           aria-label="SkinMap"
           onclick={resetToHomeView}
         >
@@ -1580,11 +1585,11 @@ function clearSearch() {
           <div class="text-lg font-semibold tracking-wide text-slate-700 dark:text-slate-200">SkinMap</div>
         </div>
         {#if routeTabs && routeTabs.length > 0}
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-1">
             {#each routeTabs as tab (tab.route ?? tab.label)}
               <a
                 href={tab.href}
-                class={`px-3 py-1 rounded-full text-xs font-semibold border ${
+                class={`px-2.5 py-1 rounded-full text-xs font-semibold border ${
                   isRouteActive(tab.route)
                     ? "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-100 border-slate-300 dark:border-slate-600 shadow"
                     : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
@@ -1599,10 +1604,10 @@ function clearSearch() {
         {/if}
       </div>
       {#if showEmbedding && !isCompactLayout}
-        <div class="flex items-center gap-3 shrink-0 min-w-0">
+        <div class="flex items-center gap-2 min-w-0">
           <Select
             label="Color"
-            class="max-w-[180px]"
+            class="max-w-[220px]"
             value={selectedCategoryColumn}
             onChange={(v) => (selectedCategoryColumn = v)}
             options={[
@@ -1618,7 +1623,7 @@ function clearSearch() {
           />
           <Select
             label="Labels"
-            class="max-w-[180px]"
+            class="max-w-[220px]"
             value={selectedLabelColumn}
             onChange={(v) => (selectedLabelColumn = v)}
             options={[

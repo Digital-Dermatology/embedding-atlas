@@ -45,10 +45,10 @@
 </script>
 
 {#if label != null}
-  <label class="select-none flex items-center gap-2">
+  <label class="select-none flex items-center gap-2 min-w-0">
     <span class="text-slate-500 dark:text-slate-400 whitespace-nowrap">{label}</span>
     <select
-      class="form-select rounded-md py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 dark:text-slate-400 text-ellipsis {additionalClasses ??
+      class="form-select rounded-md py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 dark:text-slate-400 text-ellipsis min-w-0 {additionalClasses ??
         ''}"
       bind:this={selectElement}
       value={toSelectValue(value)}
