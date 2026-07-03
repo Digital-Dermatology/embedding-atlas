@@ -1,6 +1,7 @@
 <!-- Gallery: two tabs. TRANSITIONS = generated attribute-sweep strips rated on sample realism
      (bad start/end) + trajectory realism (is the sweep sensible). SAMPLES = diverse single decoded images
-     rated on realism only (cleaner per-sample labels). A rater name is REQUIRED before any rating. -->
+     rated on TWO axes: realism (looks like a real skin image?) + adherence (matches its stated label?).
+     A rater name is REQUIRED before any rating. -->
 <script lang="ts">
   import { onMount } from "svelte";
   import { systemDarkMode } from "./lib/dark_mode_store.js";
@@ -13,7 +14,8 @@
   }
   interface Sample {
     id: string; image: string; modality: string; condition: string;
-    fitzpatrick: number | null; body_region: string; origin: string; realism: number | null;
+    fitzpatrick: number | null; body_region: string; origin: string;
+    realism: number | null; adherence: number | null;
   }
 
   let strips: Strip[] = $state([]);
@@ -89,13 +91,13 @@
       });
     } catch { /* keep local */ }
   }
-  async function rateSample(s: Sample, v: number) {
+  async function rateSample(s: Sample, kind: "realism" | "adherence", v: number) {
     if (!canRate) return;
-    s.realism = v; samples = samples;
+    s[kind] = v; samples = samples;
     try {
       await fetch("/data/samples-rating", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: s.id, realism: v, rater }),
+        body: JSON.stringify({ id: s.id, realism: s.realism, adherence: s.adherence, rater }),
       });
     } catch { /* keep local */ }
   }
@@ -115,7 +117,7 @@
           <a href="/" class="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">&larr; Back to Map</a>
         </div>
         <p class="text-xs text-slate-500 dark:text-slate-400">
-          Rate generated dermatology imagery. <b>Transitions</b> = attribute sweeps (sample + trajectory realism); <b>Samples</b> = single images (realism). Trains the realism filters.
+          Rate generated dermatology imagery. <b>Transitions</b> = attribute sweeps (sample + trajectory realism); <b>Samples</b> = single images (realism + adherence to label). Trains the realism + faithfulness filters.
         </p>
       </div>
     </div>
@@ -205,15 +207,20 @@
         {#each shownSamples as s (s.id)}
           <div class="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-1.5 flex flex-col gap-1 shadow-sm">
             <img src={s.image} alt={s.condition} loading="lazy" class="w-full aspect-square object-cover rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950" />
-            <div class="text-[10px] text-slate-400 dark:text-slate-500 truncate" title="{s.modality} · {s.condition} · FST {s.fitzpatrick ?? '?'} · {s.body_region} · {s.origin}">{s.modality} · {s.condition || "—"}</div>
+            <div class="text-[10px] text-slate-600 dark:text-slate-300 leading-tight truncate" title="{s.modality} · {s.condition} · FST {s.fitzpatrick ?? '?'} · {s.body_region} · {s.origin}">
+              {s.condition || "—"}<span class="text-slate-400 dark:text-slate-500"> · {s.modality} · FST {s.fitzpatrick ?? "?"}</span>
+            </div>
             {#if canRate}
-              <div class="flex items-center justify-between">
-                {#each SCALE as sc}
-                  <button title={sc.t}
-                    class="text-base leading-none px-1 py-0.5 rounded transition-colors {s.realism === sc.v ? 'bg-blue-600 scale-110' : 'hover:bg-slate-100 dark:hover:bg-slate-700'}"
-                    onclick={() => rateSample(s, sc.v)}>{sc.l}</button>
-                {/each}
-              </div>
+              {#each [["realism", "real?"], ["adherence", "match?"]] as const as [kind, lab]}
+                <div class="flex items-center gap-1">
+                  <span class="text-[9px] text-slate-400 dark:text-slate-500 w-8 shrink-0" title={kind === "adherence" ? "does the image match its label above?" : "does it look like a real skin image?"}>{lab}</span>
+                  {#each SCALE as sc}
+                    <button title={sc.t}
+                      class="text-sm leading-none px-1 py-0.5 rounded transition-colors {s[kind] === sc.v ? 'bg-blue-600 scale-110' : 'hover:bg-slate-100 dark:hover:bg-slate-700'}"
+                      onclick={() => rateSample(s, kind, sc.v)}>{sc.l}</button>
+                  {/each}
+                </div>
+              {/each}
             {/if}
           </div>
         {/each}
