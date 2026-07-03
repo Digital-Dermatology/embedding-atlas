@@ -166,23 +166,25 @@
       </div>
       <div class="flex flex-col gap-4">
         {#each shownStrips as s (s.id)}
-          <div class="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-3 flex flex-col gap-2 shadow-sm {canRate ? '' : 'opacity-60'}">
+          <div class="rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-3 flex flex-col gap-2 shadow-sm">
             <div class="font-medium text-slate-800 dark:text-slate-100">{s.title}</div>
             <div class="text-xs text-slate-500 dark:text-slate-400">{s.description}</div>
             <img src={s.image} alt={s.title} loading="lazy" class="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950" />
-            <div class="flex flex-col gap-1.5 pt-1">
-              {#each [["sample_realism", "sample realism (images)"], ["trajectory_realism", "trajectory realism (transition)"]] as [kind, lab]}
-                <div class="flex items-center gap-2">
-                  <span class="text-xs text-slate-400 dark:text-slate-500 w-52">{lab}</span>
-                  {#each SCALE as sc}
-                    <button title={sc.t} disabled={!canRate}
-                      class="text-lg leading-none px-2.5 py-1.5 rounded-md border transition-colors disabled:cursor-not-allowed {s[kind] === sc.v ? 'bg-blue-600 border-blue-600 scale-110' : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700'}"
-                      onclick={() => rateStrip(s, kind, sc.v)}>{sc.l}</button>
-                  {/each}
-                  {#if s[kind] != null}<span class="text-xs text-emerald-600 dark:text-emerald-400 ml-1">✓</span>{/if}
-                </div>
-              {/each}
-            </div>
+            {#if canRate}
+              <div class="flex flex-col gap-1.5 pt-1">
+                {#each [["sample_realism", "sample realism (images)"], ["trajectory_realism", "trajectory realism (transition)"]] as [kind, lab]}
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-400 dark:text-slate-500 w-52">{lab}</span>
+                    {#each SCALE as sc}
+                      <button title={sc.t}
+                        class="text-lg leading-none px-2.5 py-1.5 rounded-md border transition-colors {s[kind] === sc.v ? 'bg-blue-600 border-blue-600 scale-110' : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700'}"
+                        onclick={() => rateStrip(s, kind, sc.v)}>{sc.l}</button>
+                    {/each}
+                    {#if s[kind] != null}<span class="text-xs text-emerald-600 dark:text-emerald-400 ml-1">✓</span>{/if}
+                  </div>
+                {/each}
+              </div>
+            {/if}
           </div>
         {/each}
       </div>
@@ -201,16 +203,18 @@
       <!-- samples grid -->
       <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         {#each shownSamples as s (s.id)}
-          <div class="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-1.5 flex flex-col gap-1 shadow-sm {canRate ? '' : 'opacity-60'}">
+          <div class="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 p-1.5 flex flex-col gap-1 shadow-sm">
             <img src={s.image} alt={s.condition} loading="lazy" class="w-full aspect-square object-cover rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950" />
             <div class="text-[10px] text-slate-400 dark:text-slate-500 truncate" title="{s.modality} · {s.condition} · FST {s.fitzpatrick ?? '?'} · {s.body_region} · {s.origin}">{s.modality} · {s.condition || "—"}</div>
-            <div class="flex items-center justify-between">
-              {#each SCALE as sc}
-                <button title={sc.t} disabled={!canRate}
-                  class="text-base leading-none px-1 py-0.5 rounded transition-colors disabled:cursor-not-allowed {s.realism === sc.v ? 'bg-blue-600 scale-110' : 'hover:bg-slate-100 dark:hover:bg-slate-700'}"
-                  onclick={() => rateSample(s, sc.v)}>{sc.l}</button>
-              {/each}
-            </div>
+            {#if canRate}
+              <div class="flex items-center justify-between">
+                {#each SCALE as sc}
+                  <button title={sc.t}
+                    class="text-base leading-none px-1 py-0.5 rounded transition-colors {s.realism === sc.v ? 'bg-blue-600 scale-110' : 'hover:bg-slate-100 dark:hover:bg-slate-700'}"
+                    onclick={() => rateSample(s, sc.v)}>{sc.l}</button>
+                {/each}
+              </div>
+            {/if}
           </div>
         {/each}
       </div>
